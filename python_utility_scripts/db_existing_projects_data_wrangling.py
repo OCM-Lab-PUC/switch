@@ -1,29 +1,30 @@
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Jul  6 13:46:56 2016
-
-@author: alan
+# Operations, Control and Markets laboratory at Pontificia Universidad
+# Católica de Chile. July 2016.
 """
 
-import pandas, os, re, datetime, pyproj
+Fetches data for existing projects in the Chilean Interconected Systems and 
+wrangles with it to upload a clean and updated edition to the database.
+
+"""
+
+import pandas, os, re, datetime, sys
+from pyproj import Proj, transform
 from unidecode import unidecode
 
+if sys.getdefaultencoding() != 'utf-8':
+    # Character encoding may raise errors if set in ascii or other simple
+    # encodings which do not support spanish characters.
+    reload(sys)
+    sys.setdefaultencoding('utf-8')
 
-#Devuelvo un string limpio de carácteres anómalos, espacios y comas
 def limpiar(a):
+    # Devuelvo un string limpio de carácteres anómalos, espacios y comas
     return unidecode(a.replace(' ','_').replace('ó','o')).lower().replace(',','_')
-    
-#Removimos el archivo previo si es que ya está y lo creamos
-try:
-    os.remove('centrales.csv')
-except:
-    pass
 
-out = open('centrales.csv', 'a')
-
+out = open('centrales.csv', 'w')
     
 df = pandas.read_excel('Capacidad_Instalada.xlsx', sheetname=0, skiprows = 1)
-
 
 #for i,j in enumerate(df.columns.values):
 #   print(limpiar(j),'=',i)
@@ -50,20 +51,20 @@ este = 32
 norte = 33
 huso = 34
 
-#Se usa para cuando solo queremos obtener las letras y '_'
+# Se usa para cuando solo queremos obtener las letras y '_'
 letras = re.compile('[^a-zA-Z_]')
 
-#Abrimos para transformar coordenadas de huso 19 a 18
-projeccionUTM18 = pyproj.Proj('+init=EPSG:32718')
-projeccionUTM19 = pyproj.Proj('+init=EPSG:32719')
+# Proyection engines to transform UTM coordinates into a single zone.
+projection_UTM18S = Proj('+init=EPSG:32718')
+projection_UTM19S = Proj('+init=EPSG:32719')
 
-#Auxiliar set
+# Auxiliar set
 conjunto = []
 comb = [[20,21,22], [23,24,25], [26,27,28]]
 
-#Abrimos el excel correspondiente
+# Abrimos el excel correspondiente
 for sheet in ['SING','SIC']:
-    df = pandas.read_excel('Capacidad_Instalada.xlsx', sheetname= sheet, skiprows = 1,parse_cols = 'B:AJ')
+    df = pandas.read_excel('Capacidad_Instalada.xlsx', sheetname= sheet, skiprows = 1, parse_cols = 'B:AJ')
     
     for i in df.index:
         
@@ -116,14 +117,15 @@ for sheet in ['SING','SIC']:
         
         linea += str(barra)+','
         
-        #Añadimos geolocalización correspondiente
-        if df.ix[i,huso] == 19:
-            linea += str(pyproj.transform(projeccionUTM19, projeccionUTM18, df.ix[i,este],df.ix[i,norte] )[0])+','+str(pyproj.transform(projeccionUTM19, projeccionUTM18, df.ix[i,este],df.ix[i,norte] )[1])+','
+        # Coordinates must be in UTM WGS-84 format for Zone 18S.
+        if df.ix[i, huso] == 19:
+            coords = (str(coord) for coord in transform(projection_UTM19S,
+                        projection_UTM18S, df.ix[i, este], df.ix[i, norte]))
         elif df.ix[i,huso] == 18:
-            linea += str(df.ix[i,este])+','+str(df.ix[i,norte])+','
+            coords = (str(df.ix[i, este]), str(df.ix[i, norte]))
         else:
-            linea += ',,'
-    
+            coords = ('missing Easting', 'missing Northing')
+        linea+=','.join(coords)+','
     
         #Combustibles...
     
