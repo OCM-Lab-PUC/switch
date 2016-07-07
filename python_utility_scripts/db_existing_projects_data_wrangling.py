@@ -21,11 +21,28 @@ if sys.getdefaultencoding() != 'utf-8':
 def limpiar(a):
     # Devuelvo un string limpio de carácteres anómalos, espacios y comas
     return unidecode(a.replace(' ','_').replace('ó','o')).lower().replace(',','_')
+   
+   
+#Archivo de conversion de unidades a abrir
+conversion = pandas.read_excel('conversion.xls', sheetname= 0, parse_cols = 'A:E')
+    
+def ConvUnid(a,b,c):
+    #Entrego las unidades respectivas de combustibles según el archivo conversion.xls
+    for i in conversion.index:
+        #Si encuentro
+        if conversion.ix[i,0] == a and conversion.ix[i,1] == c:
+            #Y no es nulo
+            if not pandas.isnull(conversion.ix[i,4]):
+                return [conversion.ix[i,2],conversion.ix[i,4],conversion.ix[i,3]]
+        
+    print('Factor de',a,c,'no encontrado')        
+    return [a,b,c]    
 
 out = open('centrales.csv', 'w')
     
 df = pandas.read_excel('Capacidad_Instalada.xlsx', sheetname=0, skiprows = 1)
 
+#Columnas del archivo, obtenidos a través de
 #for i,j in enumerate(df.columns.values):
 #   print(limpiar(j),'=',i)
 
@@ -58,9 +75,6 @@ letras = re.compile('[^a-zA-Z_]')
 projection_UTM18S = Proj('+init=EPSG:32718')
 projection_UTM19S = Proj('+init=EPSG:32719')
 
-# Auxiliar set
-conjunto = []
-comb = [[20,21,22], [23,24,25], [26,27,28]]
 
 # Abrimos el excel correspondiente
 for sheet in ['SING','SIC']:
@@ -68,18 +82,11 @@ for sheet in ['SING','SIC']:
     
     for i in df.index:
         
-        for j in comb:
-            try:
-                if df.ix[i,j[0]]+','+df.ix[i,j[2]] not in conjunto:
-                    conjunto.append(df.ix[i,j[0]]+','+df.ix[i,j[2]])  
-            except:
-                pass
-        #Terminamos si no encuentra el mismo sistema
+        #Terminamos si la central no tiene sistema (fin de excel)
         if df.ix[i,sistema] != df.ix[0,sistema]:
             break
     
-        #print(df.ix[i,central])
-        
+        #Empezamos un string de linea en el que añadiremos las cosas para luego imprimir
         linea = ''
         
         #Añadimos el sistema
@@ -91,13 +98,13 @@ for sheet in ['SING','SIC']:
         #Tipo de energía
         linea += limpiar(df.ix[i,tipo_de_energia])+','
         
-        #Número de unidades sólo está presente en el SIC
+        #Número de unidades sólo está presente en el SIC, en el SING ponemos que hay 1 unidad
         if sheet == 'SIC':
             linea += str(df.ix[i,unidades])+','
         else:
             linea += '1,'
             
-        #fecha de inicio central: Si existe le ponemos, sino ponemos 1 de junio
+        #Fecha de inicio central: Si existe lo ponemos, sino ponemos 1 de junio
         if df.ix[i,fecha_puesta_en_servicio_central] != '-':
             linea += str(df.ix[i,fecha_puesta_en_servicio_central])+','
         else:
@@ -109,6 +116,7 @@ for sheet in ['SING','SIC']:
         
         #Añadimos la barra correspondiente, limpiando los caracteres, eliminando 'kv' y 'se'
         barra = letras.sub('',limpiar(df.ix[i,punto_de_conexion])).replace('kv','').replace('se','').replace('__','_')
+
         #Eliminamos '_' si es que están al inicio y al final
         if barra[0] == '_':
             barra = barra[1:]
@@ -127,78 +135,18 @@ for sheet in ['SING','SIC']:
             coords = ('missing Easting', 'missing Northing')
         linea+=','.join(coords)+','
     
-        #Combustibles...
     
-        #
-        #Factores sacados de
-        #https://www.extension.iastate.edu/agdm/wholefarm/html/c6-87.html
-        #http://www.delekenergy.co.il/?pg=calc&CategoryID=198
-    
-#        comb = [[21,22,23], [24,25,26], [27,28,29]]
-#        for j in combustible:
-#            if 'Petróleo Diesel' in j[0]:
-#                if df.ix[i,j[2]] == '[m3/MWh]':
-#                    df.ix[i,j[1]] = 0.0353 * df.ix[i,j[1]]
-            
-        if df.ix[i,combustible_1] not in conjunto:
-            conjunto.append(df.ix[i,combustible_1])
-    
-        #Combustible 1
-        if not pandas.isnull(df.ix[i,combustible_1]):
-            linea += limpiar(df.ix[i,combustible_1])+','
-        else:
-            linea += ','
-        
-        #consumo_especifico_1 
-        if not pandas.isnull(df.ix[i,consumo_especifico_1]):
-            linea += str(df.ix[i,consumo_especifico_1])+','
-        else:
-            linea += ','
-        
-        #unidad_consumo_especifico_1 
-        if not pandas.isnull(df.ix[i,unidad_consumo_especifico_1]):
-            linea += df.ix[i,unidad_consumo_especifico_1].replace('[','').replace(']','')+','
-        else:
-            linea += ','
-    
-        
-        #Lo mismo para 2 y 3
-        
-        #Combustible 2
-        if not pandas.isnull(df.ix[i,combustible_2]):
-            linea += limpiar(df.ix[i,combustible_2])+','
-        else:
-            linea += ','
-        
-        #consumo_especifico_2 
-        if not pandas.isnull(df.ix[i,consumo_especifico_2]):
-            linea += str(df.ix[i,consumo_especifico_2])+','
-        else:
-            linea += ','
-        
-        #unidad_consumo_especifico_2 
-        if not pandas.isnull(df.ix[i,unidad_consumo_especifico_2]):
-            linea += df.ix[i,unidad_consumo_especifico_2].replace('[','').replace(']','')+','
-        else:
-            linea += ','
-    
-        #Combustible 3
-        if not pandas.isnull(df.ix[i,combustible_3]):
-            linea += limpiar(df.ix[i,combustible_3])+','
-        else:
-            linea += ','
-        
-        #consumo_especifico_3 
-        if not pandas.isnull(df.ix[i,consumo_especifico_3]):
-            linea += str(df.ix[i,consumo_especifico_3])+','
-        else:
-            linea += ','
-        
-        #unidad_consumo_especifico_3 
-        if not pandas.isnull(df.ix[i,unidad_consumo_especifico_3]):
-            linea += df.ix[i,unidad_consumo_especifico_3].replace('[','').replace(']','')
-        else:
-            pass
+        #Iteramos sobre los 3 tipos de combustibles posibles, de las columnas correspondientes
+        #Llamando a la función que los convierte
+        #Si no encuentra, la función retorna los mismos valores
+        #Si no hay valores, se omiten    
+        for j in [[20,21,22], [23,24,25], [26,27,28]]:
+            if not pandas.isnull(df.ix[i,j[0]]) and not pandas.isnull( df.ix[i,j[1]]):
+                Factor = ConvUnid(df.ix[i,j[0]], df.ix[i,j[1]], df.ix[i,j[2]])
+                linea += limpiar(str(Factor[0]))+','+str(df.ix[i,j[1]]*Factor[1])+','+str(Factor[2])+','
+            else:
+                linea +=',,,'
+                
         
             
         out.write(linea+'\n')
