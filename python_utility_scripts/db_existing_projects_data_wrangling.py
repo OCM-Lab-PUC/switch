@@ -38,6 +38,54 @@ def ConvUnid(a,b,c):
     print('Factor de',a,c,'no encontrado')        
     return [a,b,c]    
 
+   
+#Archivo de detalles del sic para obtener mínimos
+detallesic = pandas.read_excel('sic.xlsx', sheetname=0, skiprows = 3)
+
+for i in detallesic.index:
+    if detallesic.ix[i,17][-1].isdigit():
+        detallesic.ix[i,17] = detallesic.ix[i,17][:-2]
+        
+        
+    
+#Buscamos el minimo dependiendo del sistema y central
+def Minimo(system, central):
+    centsic = 17
+    pminsic = 23
+    if central[-1].isdigit():
+        central = central[:-2]
+    
+    #No hay datos de potencias mínimas en el sing
+    if system == 'SING':
+        return 0
+        
+    if system == 'SIC':
+        #Buscamos en la planilla SIC
+        for i in detallesic.index:
+            #Si la encontramos
+            if central in limpiar(detallesic.ix[i,centsic]):
+                #Cambiamos las ',' por '.' si es que es string
+                minimo = detallesic.ix[i,pminsic]
+                if isinstance(minimo,str):
+                    minimo = minimo.replace(',','.')
+                    if minimo == 'cero':
+                        return 0
+                if pandas.isnull(minimo):
+                    print('Minimo de',central,'es nan')
+                    return 0
+                    
+                try:
+                    return float(minimo)
+                except:
+                    pass 
+                
+                print('Minimo de',central,'no es reconocible:',minimo)
+                return 0
+                
+    print('Minimo de', central,'no fue encontrado')       
+    return 0
+
+
 out = open('centrales.csv', 'w')
     
 df = pandas.read_excel('Capacidad_Instalada.xlsx', sheetname=0, skiprows = 1)
@@ -81,11 +129,10 @@ for sheet in ['SING','SIC']:
     df = pandas.read_excel('Capacidad_Instalada.xlsx', sheetname= sheet, skiprows = 1, parse_cols = 'B:AJ')
     
     for i in df.index:
-        
         #Terminamos si la central no tiene sistema (fin de excel)
         if df.ix[i,sistema] != df.ix[0,sistema]:
             break
-    
+            
         #Empezamos un string de linea en el que añadiremos las cosas para luego imprimir
         linea = ''
         
@@ -112,6 +159,9 @@ for sheet in ['SING','SIC']:
             
         #Potencia neta
         linea += str(df.ix[i,potencia_neta])+','
+        
+        #Potencia minima
+        linea += str(Minimo(sheet ,limpiar(df.ix[i,central].replace('U',''))))+','
             
         
         #Añadimos la barra correspondiente, limpiando los caracteres, eliminando 'kv' y 'se'
