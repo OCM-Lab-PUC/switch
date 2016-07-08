@@ -1,6 +1,8 @@
-# -*- coding: utf-8 -*-
+# Copyright 2016 The Switch-Chile Authors. All rights reserved.
+# Licensed under the Apache License, Version 2, which is in the LICENSE file.
 # Operations, Control and Markets laboratory at Pontificia Universidad
-# Católica de Chile. July 2016.
+# Católica de Chile.
+
 """
 
 Fetches data for existing projects in the Chilean Interconected Systems and 

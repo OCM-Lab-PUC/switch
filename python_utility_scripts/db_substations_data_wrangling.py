@@ -1,4 +1,10 @@
+# Copyright 2016 The Switch-Chile Authors. All rights reserved.
+# Licensed under the Apache License, Version 2, which is in the LICENSE file.
+# Operations, Control and Markets laboratory at Pontificia Universidad
+# Católica de Chile.
+
 """
+
 Script to upload and refresh the geo_substation table in the swith_chile
 OCM database. The only inputs needed are the connection parameters.
 
