@@ -88,11 +88,47 @@ def Minimo(system, central):
 
 out = open('centrales.csv', 'w')
     
-df = pandas.read_excel('Capacidad_Instalada.xlsx', sheetname=0, skiprows = 1)
+# Not all projects have coordinates in the main CNE file. Some are present
+# in the hydro power plant spreadsheet.
+df_hydro = pandas.read_excel('Centrales_Hidro.xlsx')
+df_hydro['nombre']=df_hydro['nombre'].map(lambda name: limpiar(name))
 
-#Columnas del archivo, obtenidos a través de
-#for i,j in enumerate(df.columns.values):
-#   print(limpiar(j),'=',i)
+# Each list has plant name, Easting and Northing. ALL IN ZONE 18.
+locations = [
+    ['conejo_solar', '382994.65','7179364','19'],
+    ['carilafquen', '281349', '5693183', '19'],
+    ['el_molle', '253996', '6335965', '19'],
+    ['las_araucarias', '340242', '6310766', '19'],
+    ['malalcahuello', '283631', '5689411', '19'],
+    ['mch_dosal', '336570', '6038143', '19'],
+    ['molinera_villarrica', '739004', '5648107', '18'],
+    ['pampa_solar_norte','379886', '7174683', '19'],
+    ['parque_eolico_la_esperanza', '717384', '5835235', '18'],
+    ['parque_eolico_renaico','713505','5821781', '18'],
+    ['parque_fotovoltaico_lagunilla', '297545', '6623494', '19'],
+    ['raso_power', '738940', '6080034', '18'],
+    ['salmofood_i', '600940', '5296061', '18'],
+    ['salmofood_ii', '600940', '5296061', '18'],
+    ['solar_la_silla', '331024', '6762397', '19']
+]
+
+# Proyection engines to transform UTM coordinates into a single zone.
+projection_UTM18S = Proj('+init=EPSG:32718')
+projection_UTM19S = Proj('+init=EPSG:32719')
+
+for index, row in enumerate(locations):
+    if row[3] == '19':
+        row[1], row[2] = (str(coord) for coord in transform(projection_UTM19S,
+                        projection_UTM18S, row[1], row[2]))
+
+# Some plants are tiny distributed generators (under 300 kW) and I haven't
+# been able to find them. Skip them for now.
+skip_list = [
+    'panguipulli',
+    'solar_hornitos',
+    'pmgd_pica_pilot',
+    'tamm'
+]
 
 sistema = 0
 central = 4
@@ -119,17 +155,23 @@ huso = 34
 # Se usa para cuando solo queremos obtener las letras y '_'
 letras = re.compile('[^a-zA-Z_]')
 
-# Proyection engines to transform UTM coordinates into a single zone.
-projection_UTM18S = Proj('+init=EPSG:32718')
-projection_UTM19S = Proj('+init=EPSG:32719')
-
+# Auxiliar set
+conjunto = []
+comb = [[20,21,22], [23,24,25], [26,27,28]]
 
 # Abrimos el excel correspondiente
 for sheet in ['SING','SIC']:
     df = pandas.read_excel('Capacidad_Instalada.xlsx', sheetname= sheet, skiprows = 1, parse_cols = 'B:AJ')
     
     for i in df.index:
-        #Terminamos si la central no tiene sistema (fin de excel)
+        
+        for j in comb:
+            try:
+                if df.ix[i,j[0]]+','+df.ix[i,j[2]] not in conjunto:
+                    conjunto.append(df.ix[i,j[0]]+','+df.ix[i,j[2]])  
+            except:
+                pass
+        #Terminamos si no encuentra el mismo sistema
         if df.ix[i,sistema] != df.ix[0,sistema]:
             break
             
@@ -141,6 +183,11 @@ for sheet in ['SING','SIC']:
         
         #Nombre central
         linea += limpiar(df.ix[i,central])+','
+        
+        # Skip this plant if it corresponds to tiny distributed generation
+        # which don't have coordinates yet.
+        if limpiar(df.ix[i,central]) in skip_list:
+            continue
         
         #Tipo de energía
         linea += limpiar(df.ix[i,tipo_de_energia])+','
@@ -177,12 +224,24 @@ for sheet in ['SING','SIC']:
         
         # Coordinates must be in UTM WGS-84 format for Zone 18S.
         if df.ix[i, huso] == 19:
+            # Transform projection from zone 19 to 18.
             coords = (str(coord) for coord in transform(projection_UTM19S,
                         projection_UTM18S, df.ix[i, este], df.ix[i, norte]))
         elif df.ix[i,huso] == 18:
             coords = (str(df.ix[i, este]), str(df.ix[i, norte]))
         else:
-            coords = ('missing Easting', 'missing Northing')
+            # Try to find the plant in the hydro spreadsheet.
+            hydro_plant = df_hydro[df_hydro.nombre 
+                == limpiar(df.ix[i,central])]
+            if not hydro_plant.empty:
+                row_index = hydro_plant.index[0]
+                coords = (hydro_plant['Coordenada Este'][row_index].replace(',','.'), 
+                    hydro_plant['Coordenada Norte'][row_index].replace(',','.'))
+            # If not found, use manually inputted location.
+            else:
+                for location in locations:
+                    if location[0] == limpiar(df.ix[i,central]):
+                        coords = (location[1], location[2])
         linea+=','.join(coords)+','
     
     
