@@ -1,3 +1,8 @@
+# Copyright 2016 The Switch-Chile Authors. All rights reserved.
+# Licensed under the Apache License, Version 2, which is in the LICENSE file.
+# Operations, Control and Markets laboratory at Pontificia Universidad
+# Católica de Chile.
+
 """
 
 Script to populate the timescales_population_timepoints table in the

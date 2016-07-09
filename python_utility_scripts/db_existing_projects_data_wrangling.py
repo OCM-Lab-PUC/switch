@@ -1,8 +1,8 @@
+# -*- coding: utf-8 -*-
 # Copyright 2016 The Switch-Chile Authors. All rights reserved.
 # Licensed under the Apache License, Version 2, which is in the LICENSE file.
 # Operations, Control and Markets laboratory at Pontificia Universidad
 # Católica de Chile.
-
 """
 
 Fetches data for existing projects in the Chilean Interconected Systems and 
@@ -22,9 +22,9 @@ if sys.getdefaultencoding() != 'utf-8':
     reload(sys)
     sys.setdefaultencoding('utf-8')
 
-def limpiar(a):
+def limpiar(st):
     # Returns a clean string without accents, spaces and commas
-    return unidecode(a.replace(' ','_').replace('ó','o')).lower().replace(
+    return unidecode(st.replace(' ','_')).lower().replace(
                     ',','_').replace('(','').replace(')','')
    
 ###############################
@@ -114,11 +114,11 @@ locations = [
     ['solar_la_silla', '331024', '6762397', '19']
 ]
 
-# Proyection engines to transform UTM coordinates into a single zone.
+# Proyection engines to transform UTM coordinates into a single zone: 18S.
 projection_UTM18S = Proj('+init=EPSG:32718')
 projection_UTM19S = Proj('+init=EPSG:32719')
 
-for index, row in enumerate(locations):
+for row in locations:
     if row[3] == '19':
         row[1], row[2] = (str(coord) for coord in transform(projection_UTM19S,
                         projection_UTM18S, row[1], row[2]))
