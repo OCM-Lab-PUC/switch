@@ -47,9 +47,9 @@ if not os.path.isfile('SE_SIC.xls'):
 
 # Format: northing-easting 
 locations = {
-    'lican': ['720623', '5499198', '18'],
-    'tap_duqueco': [ '736615.8','5844254.2', '18'],
-    'valdivia_sts': ['655200.55','5592977.05','18'],
+    'lican': ['5499198', '720623', '18'],
+    'tap_duqueco': ['5844254.2', '736615.8', '18'],
+    'valdivia_sts': ['5592977.05', '655200.55','18'],
     'banos_del_toro': [ '6698734', '400860', '19'],
     'pudahuel': [ '6300592', '339149', '19'],
     'agrosuper': [ '6844413', '296684', '19'],
@@ -62,7 +62,7 @@ locations = {
     'interconexion': [ '6153500', '343250', '19'],
     'tap_talinay': [ '6582627.06', '251549.74', '19'],
     'canal_melado': [ '6045250', '312663', '19'],
-    'cuel': [ '717384.8', '5837306.2', '18'],
+    'cuel': ['5837306.2', '717384.8', '18'],
     'el_arrayan': [ '6610994', '240768', '19'],
     'don_goyo': [ '6610994', '240768', '19'],
     'planta_desaladora_y_bombeo_ndeg1': [ '7063396', '331136', '19'],
@@ -250,6 +250,7 @@ for sheet in all_sheets:
         all_stations.append(row)
 
 # Coordinate projection engines
+projection_UTM17S = Proj('+init=EPSG:32717')
 projection_UTM18S = Proj('+init=EPSG:32718')
 projection_UTM19S = Proj('+init=EPSG:32719')
 projection_PSAD56 = Proj('+init=EPSG:24879')
@@ -279,10 +280,11 @@ for index, station in enumerate(all_stations):
         station[northing] = all_stations[index-1][northing]
         station[datum] = all_stations[index-1][datum]
         station[zone] = all_stations[index-1][zone]
-    # Put the original name at the end of the list and save a clean copy
-    station.append(station[name])
+        station.append(all_stations[index-1][original_name])
+    else:
+        # Put the original name at the end of the list and save a clean copy
+        station.append(station[name])
     station[name] = limpiar(station[name])
-
     
     # In these previous cases, voltages are defined as a string in the 
     # first row of the station. Parse these voltages and distribute them:
@@ -317,9 +319,17 @@ for index, station in enumerate(all_stations):
         station[northing] = '7486686'
         station[datum] = 'WGS84'
         station[zone] = 19
+    # And one has the wrong coordinates
+    if station[name] == 'planta_de_oxidos':
+        station[easting] = '490239'
+        station[northing] = '7317895'
+        station[datum] = 'WGS84'
+        station[zone] = 19
     
-    # Transform PSAD56 coordinates into WGS84    
-    if '84' not in station[datum]:
+    # Transform PSAD56 coordinates into WGS84
+    # When the same station has different voltages, the conversion
+    # must be skipped and just take the value    
+    if '84' not in station[datum] and station[name] != all_stations[index-1][name]:
         station[easting], station[northing] = (str(coord) 
             for coord in transform(
                 projection_PSAD56, projection_UTM18S, 
@@ -338,7 +348,7 @@ with open('substations_sing.csv', 'w') as out:
     for station in all_stations:
         csv_writer.writerow([station[name], station[voltage], 'sing',
             station[easting], station[northing], '', station[original_name],
-            '', '', '', station[zone]])
+            '', '', '0', station[zone]])
 
 ##############################
 ####### UPLOAD TO DB #########
@@ -365,48 +375,61 @@ for station in subs_for_db:
         # Zone
         station[-1] = locations[station[0]][2]
     # Project all coordinates to UTM zone 18S.
-    if station[-1] == '19':
+    if '17' in station[-1] or station[0] == 'minera_franke':
+        # A couple of stations mispelled their zone
+        station[-1] = '19'
+    # And one substation in the SIC is mixed up
+    if station[name] == 'tap_tilcoco':
+        station[3], station[4] = station[4], station[3]
+    if '19' in station[-1]:
         station[3], station[4] = (str(coord) for coord in transform(
             projection_UTM19S, projection_UTM18S, 
             station[3], station[4]))
         station[-1] = '18'
-with open('testing.csv', 'w') as out:
-    csv_writer = writer(out, delimiter = ',')
-    for station in subs_for_db:
-        csv_writer.writerow(station)
-"""
+
 ##############
 # DB Conection
 try:
     # Remember to enter and/or modify connection parameters accordingly to your
     # setup
-    con = psycopg2.connect(database='switch_chile', user='caravena', 
+    con = psycopg2.connect(database='switch_chile', user='bmaluenda', 
                             host='localhost', port='5915',
                             password='')
     print ("Connection to database established...")
 except:
     sys.exit("Error connecting to the switch_chile database...")
 
-
-
 cur = con.cursor()
 
-#se eliminan los datos anteriores disponibles en la base de datos
+# Clean database
 try:
-    query1 = "DELETE FROM chile_new.geo_substations"
-    cur.execute(query1)
+    cleaning = "DELETE FROM chile_new.geo_substations"
+    cur.execute(cleaning)
     print("Table erased")
 except psycopg2.DatabaseError as e:
     if con:
         con.rollback()
     print(e)
 
-#se carga la nueva matriz a la base de datos
+# Load new data
 try:
-    query = "INSERT INTO chile_new.geo_substations (db_name, db_voltage, system, northing, easting, region, cdec_name, owner_name,owner_cdec_code, owner_substation_number, huso) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
-    cur.executemany(query, your_list)
+    values_str = ','.join(cur.mogrify("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        substation) for substation in subs_for_db)
+    query_str = "INSERT INTO chile_new.geo_substations (db_name, db_voltage, system, easting, northing, region, cdec_name, owner_name,owner_cdec_code, owner_substation_number, huso) VALUES"+values_str+";"
+    cur.execute(query_str)
     con.commit()
-    print ("Query for population of timeseries id %s has been successful")
+    print ("New substation data has been uploaded to the DB.")
+except psycopg2.DatabaseError as e:
+    if con:
+        con.rollback()
+    print(e)
+    
+# Update geometry column with new coordinates
+try:
+    query_str = "UPDATE chile_new.geo_substations SET geom = ST_SetSrid(ST_MakePoint(easting, northing), 32718)"
+    cur.execute(query_str)
+    con.commit()
+    print ("Updated geometry column with new data.")
 except psycopg2.DatabaseError as e:
     if con:
         con.rollback()
@@ -416,10 +439,3 @@ if cur:
     cur.close()
 if con:
     con.close()
-
-
-
-
-
-
-"""
