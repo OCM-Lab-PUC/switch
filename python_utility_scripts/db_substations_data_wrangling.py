@@ -190,7 +190,6 @@ for index, row in row_iterator:
         else:
             db_voltage.set_value(index,['db_voltage'],aux[contador_2])
         contador_2 +=1
-
 #se añade la columna de voltajes a la matriz en la posición correspondiente al formato de la BD
 matriz.insert(1, 'db_voltage', db_voltage)
 
@@ -202,7 +201,7 @@ matriz_aux = matriz_aux[matriz_aux.db_name != 0]
 db_voltage_aux.reindex(index=range(0,len(matriz_aux)))
 
 #Se juntan la matriz y matriz auxiliar para obtner todos los datos de SIC
-matriz1 = pd.concat([matriz,matriz_aux])
+matriz = pd.concat([matriz,matriz_aux])
 matriz['indice']=range(0,len(matriz))
 matriz = matriz.set_index('indice')
 
@@ -354,15 +353,14 @@ with open('substations_sing.csv', 'w') as out:
 ####### UPLOAD TO DB #########
 
 # Both csv's must be read into a big list of lists
+files_to_append = ['substations_sic.csv', 'substations_sing.csv',
+    'substations_plants.csv']
 subs_for_db = []
-with open('substations_sic.csv', 'r') as f:
-    read = reader(f)
-    for row in read:
-        subs_for_db.append(row)
-with open('substations_sing.csv', 'r') as f:
-    read = reader(f)
-    for row in read:
-        subs_for_db.append(row)
+for file in files_to_append:
+    with open(file, 'r') as f:
+        read = reader(f)
+        for row in read:
+            subs_for_db.append(row)
 
 # Proyection engines to transform UTM coordinates into a single zone: 18S.
 # Substations which are missing location are given manually inputted values.

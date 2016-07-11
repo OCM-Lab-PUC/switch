@@ -24,20 +24,12 @@ if sys.getdefaultencoding() != 'utf-8':
 
 def limpiar(a):
     # Devuelvo un string limpio de carácteres anómalos, espacios y comas
-    limpio = unidecode(a.replace(' ','_').replace('ó','o')).lower().replace(',','_')
-    while limpio[0] == '_':
-        limpio = limpio[1:]
-    while limpio[-1] == '_':
-        limpio = limpio[:-1]
+    limpio = unidecode(a.replace(' ','_').replace('ó','o')).lower().replace(',','_').strip('_')
     return limpio
     
 ###############################
 # Uni conversion function
 conversion = pd.read_excel('conversion.xls', sheetname= 0, parse_cols = 'A:E')
-
-
-   
-#conversion = pandas.read_excel('ConvUnid.xls', sheetname= 0, parse_cols = 'A:E')
     
 def ConvUnid(a,b,c):
     #Entrego las unidades respectivas de combustibles según el archivo conversion.xls
@@ -54,9 +46,6 @@ def ConvUnid(a,b,c):
 # Minimum power functions  
    
 detallesic = pd.read_excel('sic.xlsx', sheetname=0, skiprows = 3)
-
-
-
 
 #Eliminamos los ultimos dos digitos si es que el último es número: Abanico 1 -> Abanico
 for i in detallesic.index:
@@ -102,12 +91,10 @@ def Minimo(system, central):
 
 ###############################
 # Plant locations
-
-#
 #Asociar barras
 #2 Input: archivo con subestaciones y archivo con diccionario de subestaciones para buscar
-subestaciones = pd.read_csv('geo_substation.csv', header= None)
-convsub = pd.read_excel('ConvSubest.xls', 0)
+#subestaciones = pd.read_csv('geo_substation.csv', header= None)
+#convsub = pd.read_excel('ConvSubest.xls', 0)
 #Busco la subestación correspondiente a la central para ver si está asociada en el archivo de subestaciones
 def BarraCent(barra):
     #Buscamos en el excel de subestaciones
@@ -121,11 +108,7 @@ def BarraCent(barra):
                 if limpiar(convsub.ix[i,1]) == limpiar(subestaciones.ix[j,0]):
                     return True
     return False
-    
-    
-
-out = open('centrales.csv', 'w')
-    
+      
 # Not all projects have coordinates in the main CNE file. Some are present
 # in the hydro power plant spreadsheet.
 df_hydro = pd.read_excel('Centrales_Hidro.xlsx')
@@ -202,9 +185,9 @@ comb = [[20,21,22], [23,24,25], [26,27,28]]
 
 # Initialize writer
 out = open('centrales.csv', 'w')
-csv_writer = writer(out, delimiter = ',')
-
-
+plants_writer = writer(out, delimiter = ',')
+out1 = open('substations_plants.csv', 'w')
+substations_writer = writer(out1, delimiter = ',')
 
 # Guardamos en un set las centrales con barra huacha
 huacho = []
@@ -240,7 +223,6 @@ for sheet in ['SING','SIC']:
         if name in skip_list:
             continue
             
-        
         system = limpiar(df.ix[i,sistema])
                 
         energy_source = limpiar(df.ix[i,tipo_de_energia])
@@ -267,6 +249,13 @@ for sheet in ['SING','SIC']:
         # Bus bar names must be cleaned, removing the 'SE' prefix and the
         # kV units. Underscores are ordered and cleaned as well.
         busbar = letras.sub('',limpiar(df.ix[i,punto_de_conexion])).replace('kv','').replace('se','').replace('__','_').strip('_')
+        # Use a regex to get numbers from the substation name
+        # Only get last number, which is the voltage (others may be 
+        # part of the stations' name)
+        try:
+            voltage = re.findall(r'\d+[\.]?\d*', df.ix[i,punto_de_conexion])[-1]
+        except:
+            voltage = ''
         
         # Coordinates must be in UTM WGS-84 format for Zone 18S.
         if df.ix[i, huso] == 19:
@@ -277,24 +266,24 @@ for sheet in ['SING','SIC']:
         #Potencia minima, usamos la función para buscar en el excel correspondiente
         linea += str(Minimo(sheet ,limpiar(df.ix[i,central].replace('U',''))))+','
             
-        #Añadimos la barra correspondiente, limpiando los caracteres, eliminando 'kv' y 'se'
-        barra = letras.sub('',limpiar(df.ix[i,punto_de_conexion])).replace('kv','').replace('se','').replace('__','_')
+        # #Añadimos la barra correspondiente, limpiando los caracteres, eliminando 'kv' y 'se'
+        # barra = letras.sub('',limpiar(df.ix[i,punto_de_conexion])).replace('kv','').replace('se','').replace('__','_')
         
-        #Eliminamos '_' si es que están al inicio y al final
-        if barra[0] == '_':
-            barra = barra[1:]
-        if barra[-1] == '_':
-            barra = barra[:-1]
+        # #Eliminamos '_' si es que están al inicio y al final
+        # if barra[0] == '_':
+        #     barra = barra[1:]
+        # if barra[-1] == '_':
+        #     barra = barra[:-1]
         
-        print(df.ix[i,central],'barra',BarraCent(barra))
-        if not BarraCent(barra):
-            huacho.append(barra)
+        # #print(df.ix[i,central],'barra',BarraCent(barra))
+        # #if not BarraCent(barra):
+        # #    huacho.append(barra)
             
-        linea += str(barra)+','
+        # linea += str(barra)+','
         
         # Coordinates must be in UTM WGS-84 format for Zone 18S.
         if df.ix[i, huso] == 19:
-            coords = (str(coord) for coord in transform(projection_UTM19S,
+            coords = tuple(str(coord) for coord in transform(projection_UTM19S,
                             projection_UTM18S, df.ix[i, este], df.ix[i, norte]))
                             
         elif df.ix[i,huso] == 18:
@@ -329,13 +318,17 @@ for sheet in ['SING','SIC']:
             else:
                 factors.append(('','',''))                
         
-        csv_writer.writerow([system, name, energy_source, units, date,
-         net_power, min_power, busbar, coords[0], coords[1], factors[0][0], 
-            factors[0][1], factors[0][2], factors[1][0], factors[1][1],
-            factors[1][2], factors[2][0], factors[2][1], factors[2][2]])    
+        plants_writer.writerow([system, name, energy_source, units, date,
+         net_power, min_power, busbar, voltage, coords[0], coords[1], 
+         factors[0][0], factors[0][1], factors[0][2], factors[1][0], 
+         factors[1][1], factors[1][2], factors[2][0], factors[2][1], 
+         factors[2][2]])  
+        
+        substations_writer.writerow([busbar, voltage, sheet.lower(),
+        coords[0], coords[1], '', df.ix[i,punto_de_conexion], '', '',
+        '', '18'])  
 
-            
         #print(linea+'\n')
 
-
 out.close()
+out1.close()
