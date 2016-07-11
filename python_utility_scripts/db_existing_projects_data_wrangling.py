@@ -22,6 +22,7 @@ if sys.getdefaultencoding() != 'utf-8':
     reload(sys)
     sys.setdefaultencoding('utf-8')
 
+<<<<<<< 5c4a96ce14e171cbc54ed0c6119247b4f2fed8be
 def limpiar(st):
     # Returns a clean string without accents, spaces and commas
     return unidecode(st.replace(' ','_')).lower().replace(
@@ -32,6 +33,17 @@ def limpiar(st):
 # Uni conversion function
 conversion = pd.read_excel('conversion.xls', sheetname= 0, parse_cols = 'A:E')
 =======
+=======
+def limpiar(a):
+    # Devuelvo un string limpio de carácteres anómalos, espacios y comas
+    limpio = unidecode(a.replace(' ','_').replace('ó','o')).lower().replace(',','_')
+    while limpio[0] == '_':
+        limpio = limpio[1:]
+    while limpio[-1] == '_':
+        limpio = limpio[:-1]
+    return limpio
+    
+>>>>>>> 206bc88fffedec66ad02dd97f86471d93008b7c6
    
 #Archivo de conversion de unidades a abrir
 conversion = pandas.read_excel('ConvUnid.xls', sheetname= 0, parse_cols = 'A:E')
