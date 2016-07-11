@@ -22,18 +22,6 @@ if sys.getdefaultencoding() != 'utf-8':
     reload(sys)
     sys.setdefaultencoding('utf-8')
 
-<<<<<<< 5c4a96ce14e171cbc54ed0c6119247b4f2fed8be
-def limpiar(st):
-    # Returns a clean string without accents, spaces and commas
-    return unidecode(st.replace(' ','_')).lower().replace(
-                    ',','_').replace('(','').replace(')','')
-   
-<<<<<<< ab3272f4858697be617cbda959056c01e4ab67c7
-###############################
-# Uni conversion function
-conversion = pd.read_excel('conversion.xls', sheetname= 0, parse_cols = 'A:E')
-=======
-=======
 def limpiar(a):
     # Devuelvo un string limpio de carácteres anómalos, espacios y comas
     limpio = unidecode(a.replace(' ','_').replace('ó','o')).lower().replace(',','_')
@@ -43,11 +31,13 @@ def limpiar(a):
         limpio = limpio[:-1]
     return limpio
     
->>>>>>> 206bc88fffedec66ad02dd97f86471d93008b7c6
+###############################
+# Uni conversion function
+conversion = pd.read_excel('conversion.xls', sheetname= 0, parse_cols = 'A:E')
+
+
    
-#Archivo de conversion de unidades a abrir
-conversion = pandas.read_excel('ConvUnid.xls', sheetname= 0, parse_cols = 'A:E')
->>>>>>> 901d9de120c93688ef593d39a15f4b19e194cda7
+#conversion = pandas.read_excel('ConvUnid.xls', sheetname= 0, parse_cols = 'A:E')
     
 def ConvUnid(a,b,c):
     #Entrego las unidades respectivas de combustibles según el archivo conversion.xls
@@ -59,20 +49,16 @@ def ConvUnid(a,b,c):
                 return [conversion.ix[i,2],conversion.ix[i,4],conversion.ix[i,3]]
     print('Factor de',a,c,'no encontrado')        
     return [a,b,c]    
-<<<<<<< ab3272f4858697be617cbda959056c01e4ab67c7
  
 ###############################
 # Minimum power functions  
    
 detallesic = pd.read_excel('sic.xlsx', sheetname=0, skiprows = 3)
-=======
 
 
-#Archivo de detalles del sic para obtener mínimos
-detallesic = pandas.read_excel('sic.xlsx', sheetname=0, skiprows = 3)
+
 
 #Eliminamos los ultimos dos digitos si es que el último es número: Abanico 1 -> Abanico
->>>>>>> 901d9de120c93688ef593d39a15f4b19e194cda7
 for i in detallesic.index:
     if detallesic.ix[i,17][-1].isdigit():
         detallesic.ix[i,17] = detallesic.ix[i,17][:-2]
@@ -114,15 +100,14 @@ def Minimo(system, central):
     print('Minimo de', central,'no fue encontrado')       
     return 0
 
-<<<<<<< ab3272f4858697be617cbda959056c01e4ab67c7
 ###############################
 # Plant locations
-=======
+
 #
 #Asociar barras
 #2 Input: archivo con subestaciones y archivo con diccionario de subestaciones para buscar
-subestaciones = pandas.read_csv('geo_substation.csv', header= None)
-convsub = pandas.read_excel('ConvSubest.xls', 0)
+subestaciones = pd.read_csv('geo_substation.csv', header= None)
+convsub = pd.read_excel('ConvSubest.xls', 0)
 #Busco la subestación correspondiente a la central para ver si está asociada en el archivo de subestaciones
 def BarraCent(barra):
     #Buscamos en el excel de subestaciones
@@ -140,7 +125,6 @@ def BarraCent(barra):
     
 
 out = open('centrales.csv', 'w')
->>>>>>> 901d9de120c93688ef593d39a15f4b19e194cda7
     
 # Not all projects have coordinates in the main CNE file. Some are present
 # in the hydro power plant spreadsheet.
@@ -216,23 +200,18 @@ letras = re.compile('[^a-zA-Z_]')
 conjunto = []
 comb = [[20,21,22], [23,24,25], [26,27,28]]
 
-<<<<<<< ab3272f4858697be617cbda959056c01e4ab67c7
 # Initialize writer
 out = open('centrales.csv', 'w')
 csv_writer = writer(out, delimiter = ',')
 
-for sheet in ['SING', 'SIC']:
-    df = pd.read_excel('Capacidad_Instalada.xlsx', 
-            sheetname= sheet, skiprows = 1, parse_cols = 'B:AJ')
-    
-    for i in df.index:
-=======
+
+
 # Guardamos en un set las centrales con barra huacha
 huacho = []
 
 # Abrimos el excel correspondiente
-for sheet in ['SIC']:
-    df = pandas.read_excel('Capacidad_Instalada.xlsx', sheetname= sheet, skiprows = 1, parse_cols = 'B:AJ')
+for sheet in ['SING','SIC']:
+    df = pd.read_excel('Capacidad_Instalada.xlsx', sheetname= sheet, skiprows = 1, parse_cols = 'B:AJ')
     
     for i in df.index:
         #Terminamos si la central no tiene sistema (fin de excel)
@@ -241,7 +220,6 @@ for sheet in ['SIC']:
 
         #Empezamos un string de linea en el que añadiremos las cosas para luego imprimir
         linea = ''
->>>>>>> 901d9de120c93688ef593d39a15f4b19e194cda7
         
         for j in comb:
             try:
@@ -283,7 +261,6 @@ for sheet in ['SIC']:
             
         net_power = str(df.ix[i,potencia_neta])
         
-<<<<<<< ab3272f4858697be617cbda959056c01e4ab67c7
         min_power = str(Minimo(sheet,
             limpiar(df.ix[i,central].replace('U',''))))
         
@@ -296,7 +273,7 @@ for sheet in ['SIC']:
             # Transform projection from zone 19 to 18.
             coords = tuple(str(coord) for coord in transform(projection_UTM19S,
                         projection_UTM18S, df.ix[i, este], df.ix[i, norte]))
-=======
+
         #Potencia minima, usamos la función para buscar en el excel correspondiente
         linea += str(Minimo(sheet ,limpiar(df.ix[i,central].replace('U',''))))+','
             
@@ -319,7 +296,7 @@ for sheet in ['SIC']:
         if df.ix[i, huso] == 19:
             coords = (str(coord) for coord in transform(projection_UTM19S,
                             projection_UTM18S, df.ix[i, este], df.ix[i, norte]))
->>>>>>> 901d9de120c93688ef593d39a15f4b19e194cda7
+                            
         elif df.ix[i,huso] == 18:
             coords = (str(df.ix[i, este]), str(df.ix[i, norte]))
         else:
@@ -352,15 +329,13 @@ for sheet in ['SIC']:
             else:
                 factors.append(('','',''))                
         
-<<<<<<< ab3272f4858697be617cbda959056c01e4ab67c7
         csv_writer.writerow([system, name, energy_source, units, date,
          net_power, min_power, busbar, coords[0], coords[1], factors[0][0], 
             factors[0][1], factors[0][2], factors[1][0], factors[1][1],
             factors[1][2], factors[2][0], factors[2][1], factors[2][2]])    
-=======
+
             
         #print(linea+'\n')
 
->>>>>>> 901d9de120c93688ef593d39a15f4b19e194cda7
 
 out.close()
