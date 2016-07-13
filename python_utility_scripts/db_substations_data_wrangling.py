@@ -24,14 +24,16 @@ else:
 if sys.getdefaultencoding() != 'utf-8':
     # Character encoding may raise errors if set in ascii or other simple
     # encodings which do not support spanish characters.
-    reload(sys)
+    reload(sys) 
     sys.setdefaultencoding('utf-8')
 
 def limpiar(st):
     # Returns a clean string without accents, spaces and commas
     return unidecode(st.replace(' ','_')).lower().replace(
                     ',','_').replace('(','').replace(')','').replace(
-                    "'",'_').replace('s/e','').strip('_')
+                    "'",'_').replace('s/e','').replace(
+                    '220_kv','').replace('100_kv','').replace(
+                    '110_kv','').replace('23_kv','').strip('_')
 
 ###############################
 ############# SIC #############
@@ -44,6 +46,18 @@ if not os.path.isfile('SE_SIC.xls'):
         print ('Successfully downloaded SIC spreadsheet')
     except:
         sys.exit('An error ocurred while fetching the SIC substations spreadsheet')
+        
+# Manually create some very important substations which do not appear
+# in the CNE files
+manual_subs_sing = [
+['laberinto', 220, 'sing', '1071679.579', '7395715.399', '', 'laberinto_manual', '', '', '0', '18'],
+['nueva_zaldivar', 220, 'sing', '1103862.834', '7314517.972', '', 'nueva_zaldivar_manual', '', '', '0', '18'],
+['antucoya', 110, 'sing', '1027404.021', '7479639.316', '', 'antucoya_manual', '', '', '0', '18']
+]
+manual_subs_sic = [
+['las_companias', 110, 'sic', '863885.650','6688698.883', '', 'las_companias_manual', '', '', '0', '18'],
+['renaca', 110, 'sic', '824410.353', '6345576.971', '', 'renaca_manual', '', '', '0', '18']
+]
 
 # Format: northing-easting 
 locations = {
@@ -208,6 +222,9 @@ matriz = matriz.set_index('indice')
 with open('substations_sic.csv','w') as outfile:
     matriz.to_csv(outfile, sep=',', header=False, index=False, 
         encoding='utf-8')
+    csv_writer = writer(outfile, delimiter = ',')
+    for manual_sub in manual_subs_sic:    
+        csv_writer.writerow(manual_sub)
 
 ###############################
 ############# SING #############
@@ -348,6 +365,8 @@ with open('substations_sing.csv', 'w') as out:
         csv_writer.writerow([station[name], station[voltage], 'sing',
             station[easting], station[northing], '', station[original_name],
             '', '', '0', station[zone]])
+    for manual_sub in manual_subs_sing:    
+        csv_writer.writerow(manual_sub)
 
 ##############################
 ####### UPLOAD TO DB #########
@@ -384,6 +403,13 @@ for station in subs_for_db:
             projection_UTM19S, projection_UTM18S, 
             station[3], station[4]))
         station[-1] = '18'
+    # Some plants have wrong coodinates
+    if 'diesel_arica' in station[0]:
+        station[3] = '996338.474'
+        station[4] = '7951653.347'
+    if station[0] == 'central_termoelectrica_andina_cta' or station[0] == 'termoelectrica_hornitos_cth':
+        station[3] = '971126.321'
+        station[4] = '7439709.684'
 
 ##############
 # DB Conection

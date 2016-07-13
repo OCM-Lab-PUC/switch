@@ -12,9 +12,10 @@ wrangles with it to upload a clean and updated edition to the database.
 
 import os, re, sys
 import pandas as pd
-from csv import writer
+from csv import writer, reader
 from pyproj import Proj, transform
 from unidecode import unidecode
+import psycopg2
 
 if sys.getdefaultencoding() != 'utf-8':
     # Character encoding may raise errors if set in ascii or other simple
@@ -24,7 +25,7 @@ if sys.getdefaultencoding() != 'utf-8':
 
 def limpiar(a):
     # Devuelvo un string limpio de carácteres anómalos, espacios y comas
-    limpio = unidecode(a.replace(' ','_').replace('ó','o')).lower().replace(',','_').strip('_')
+    limpio = unidecode(a.replace(' ','_').replace('ó','o')).lower().replace(',','_').replace('(','_').replace(')','_').replace('__','_').strip('_')
     return limpio
     
 ###############################
@@ -119,6 +120,7 @@ locations = [
     ['conejo_solar', '382994.65','7179364','19'],
     ['carilafquen', '281349', '5693183', '19'],
     ['el_molle', '253996', '6335965', '19'],
+    ['el_tartaro', '339326.625932', '6373935.8816', '19'],
     ['las_araucarias', '340242', '6310766', '19'],
     ['malalcahuello', '283631', '5689411', '19'],
     ['mch_dosal', '336570', '6038143', '19'],
@@ -145,6 +147,8 @@ for row in locations:
 # Some plants are tiny distributed generators (under 300 kW) and I haven't
 # been able to find them. Skip them and don't even write them to the CSV.
 skip_list = [
+    'boquiamargo',
+    'contra',
     'panguipulli',
     'solar_hornitos',
     'pmgd_pica_pilot',
@@ -189,9 +193,6 @@ plants_writer = writer(out, delimiter = ',')
 out1 = open('substations_plants.csv', 'w')
 substations_writer = writer(out1, delimiter = ',')
 
-# Guardamos en un set las centrales con barra huacha
-huacho = []
-
 # Abrimos el excel correspondiente
 for sheet in ['SING','SIC']:
     df = pd.read_excel('Capacidad_Instalada.xlsx', sheetname= sheet, skiprows = 1, parse_cols = 'B:AJ')
@@ -200,9 +201,6 @@ for sheet in ['SING','SIC']:
         #Terminamos si la central no tiene sistema (fin de excel)
         if df.ix[i,sistema] != df.ix[0,sistema]:
             break
-
-        #Empezamos un string de linea en el que añadiremos las cosas para luego imprimir
-        linea = ''
         
         for j in comb:
             try:
@@ -227,13 +225,13 @@ for sheet in ['SING','SIC']:
                 
         energy_source = limpiar(df.ix[i,tipo_de_energia])
         
-        if sheet == 'SIC':
+        if sheet == 'SIC' and energy_source != 'solar':
             # Plants are grouped by units only in the SIC sheet
             units = str(df.ix[i,unidades])
         else:
             units = '1'
             
-        if df.ix[i,fecha_puesta_en_servicio_central] != '-':
+        if df.ix[i,fecha_puesta_en_servicio_central] != '-' and df.ix[i,fecha_puesta_en_servicio_central] != 'En Prueba':
             date = str(df.ix[i,fecha_puesta_en_servicio_central])
         else:
             # If date is not specified, June 1st is written. Projects without
@@ -255,32 +253,14 @@ for sheet in ['SING','SIC']:
         try:
             voltage = re.findall(r'\d+[\.]?\d*', df.ix[i,punto_de_conexion])[-1]
         except:
-            voltage = ''
+            voltage = '0'
         
         # Coordinates must be in UTM WGS-84 format for Zone 18S.
         if df.ix[i, huso] == 19:
             # Transform projection from zone 19 to 18.
             coords = tuple(str(coord) for coord in transform(projection_UTM19S,
                         projection_UTM18S, df.ix[i, este], df.ix[i, norte]))
-
-        #Potencia minima, usamos la función para buscar en el excel correspondiente
-        linea += str(Minimo(sheet ,limpiar(df.ix[i,central].replace('U',''))))+','
-            
-        # #Añadimos la barra correspondiente, limpiando los caracteres, eliminando 'kv' y 'se'
-        # barra = letras.sub('',limpiar(df.ix[i,punto_de_conexion])).replace('kv','').replace('se','').replace('__','_')
-        
-        # #Eliminamos '_' si es que están al inicio y al final
-        # if barra[0] == '_':
-        #     barra = barra[1:]
-        # if barra[-1] == '_':
-        #     barra = barra[:-1]
-        
-        # #print(df.ix[i,central],'barra',BarraCent(barra))
-        # #if not BarraCent(barra):
-        # #    huacho.append(barra)
-            
-        # linea += str(barra)+','
-        
+          
         # Coordinates must be in UTM WGS-84 format for Zone 18S.
         if df.ix[i, huso] == 19:
             coords = tuple(str(coord) for coord in transform(projection_UTM19S,
@@ -318,7 +298,7 @@ for sheet in ['SING','SIC']:
             else:
                 factors.append(('','',''))                
         
-        plants_writer.writerow([system, name, energy_source, units, date,
+        plants_writer.writerow([name, system, units, energy_source, date,
          net_power, min_power, busbar, voltage, coords[0], coords[1], 
          factors[0][0], factors[0][1], factors[0][2], factors[1][0], 
          factors[1][1], factors[1][2], factors[2][0], factors[2][1], 
@@ -326,9 +306,74 @@ for sheet in ['SING','SIC']:
         
         substations_writer.writerow([busbar, voltage, sheet.lower(),
         coords[0], coords[1], '', df.ix[i,punto_de_conexion], '', '',
-        '', '18'])  
-
-        #print(linea+'\n')
+        0, '18'])  
 
 out.close()
 out1.close()
+
+##############################
+####### UPLOAD TO DB #########
+
+projects_for_db = []
+with open('centrales.csv', 'r') as f:
+    read = reader(f)
+    for row in read:
+        for i in range(11, 20):
+            # Enter null values if fuel info not present
+            if not row[i]:
+                row[i] = None
+        projects_for_db.append(row)
+
+##############
+# DB Conection
+try:
+    # Remember to enter and/or modify connection parameters accordingly to your
+    # setup
+    con = psycopg2.connect(database='switch_chile', user='bmaluenda', 
+                            host='localhost', port='5915',
+                            password='')
+    print ("Connection to database established...")
+except:
+    sys.exit("Error connecting to the switch_chile database...")
+
+cur = con.cursor()
+
+# Clean database
+try:
+    cleaning = "DELETE FROM chile_new.geo_existing_projects"
+    cur.execute(cleaning)
+    print("Table erased")
+except psycopg2.DatabaseError as e:
+    if con:
+        con.rollback()
+    print(e)
+
+# Load new data
+try:
+    values_str = ','.join(cur.mogrify("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        project) for project in projects_for_db)
+    query_str = "INSERT INTO chile_new.geo_existing_projects (db_name, system, units, main_energy_source, start_date, max_net_power, min_net_power, connection_point, voltage_connection, easting, northing, fuel_1, specific_consumption_1, units_specific_consumption_1, fuel_2, specific_consumption_2, units_specific_consumption_2, fuel_3, specific_consumption_3, units_specific_consumption_3) VALUES "+values_str+";"
+    cur.execute(query_str)
+    con.commit()
+    print ("New existing project data has been uploaded to the DB.")
+except psycopg2.DatabaseError as e:
+    if con:
+        con.rollback()
+    print(e)
+    
+# Update geometry column with new coordinates
+try:
+    query_str = "UPDATE chile_new.geo_existing_projects SET geom = ST_SetSrid(ST_MakePoint(easting, northing), 32718)"
+    cur.execute(query_str)
+    con.commit()
+    print ("Updated geometry column with new data.")
+except psycopg2.DatabaseError as e:
+    if con:
+        con.rollback()
+    print(e)
+
+if cur:
+    cur.close()
+if con:
+    con.close()
+
