@@ -375,11 +375,16 @@ with open('substations_sing.csv', 'w') as out:
 files_to_append = ['substations_sic.csv', 'substations_sing.csv',
     'substations_plants.csv']
 subs_for_db = []
+tuples_already_read = []
 for file in files_to_append:
     with open(file, 'r') as f:
         read = reader(f)
         for row in read:
-            subs_for_db.append(row)
+            if (row[0], row[1]) in tuples_already_read:
+                continue
+            else:
+                subs_for_db.append(row)
+                tuples_already_read.append((row[0],row[1]))
 
 # Proyection engines to transform UTM coordinates into a single zone: 18S.
 # Substations which are missing location are given manually inputted values.
@@ -403,13 +408,6 @@ for station in subs_for_db:
             projection_UTM19S, projection_UTM18S, 
             station[3], station[4]))
         station[-1] = '18'
-    # Some plants have wrong coodinates
-    if 'diesel_arica' in station[0]:
-        station[3] = '996338.474'
-        station[4] = '7951653.347'
-    if station[0] == 'central_termoelectrica_andina_cta' or station[0] == 'termoelectrica_hornitos_cth':
-        station[3] = '971126.321'
-        station[4] = '7439709.684'
 
 ##############
 # DB Conection
@@ -418,7 +416,7 @@ try:
     # setup
     con = psycopg2.connect(database='switch_chile', user='bmaluenda', 
                             host='localhost', port='5915',
-                            password='')
+                            password='clnnl479')
     print ("Connection to database established...")
 except:
     sys.exit("Error connecting to the switch_chile database...")

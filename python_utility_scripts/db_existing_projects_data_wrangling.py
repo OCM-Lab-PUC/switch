@@ -135,6 +135,16 @@ locations = [
     ['solar_la_silla', '331024', '6762397', '19']
 ]
 
+# Some plants have wrongly entered coordinates
+# All are in zone 18S
+correct_coords = {
+    'diesel_arica_gmar': ['996338.474', '7951653.347'],
+    'diesel_arica_m1ar': ['996338.474', '7951653.347'],
+    'diesel_arica_m2ar': ['996338.474', '7951653.347'],
+    'central_termoelectrica_andina_cta': ['971126.321', '7439709.684'],
+    'termoelectrica_hornitos_cth': ['971126.321', '7439709.684']
+}
+
 # Proyection engines to transform UTM coordinates into a single zone: 18S.
 projection_UTM18S = Proj('+init=EPSG:32718')
 projection_UTM19S = Proj('+init=EPSG:32719')
@@ -149,6 +159,7 @@ for row in locations:
 skip_list = [
     'boquiamargo',
     'contra',
+    'el_tartaro',
     'panguipulli',
     'solar_hornitos',
     'pmgd_pica_pilot',
@@ -254,18 +265,11 @@ for sheet in ['SING','SIC']:
             voltage = re.findall(r'\d+[\.]?\d*', df.ix[i,punto_de_conexion])[-1]
         except:
             voltage = '0'
-        
+
         # Coordinates must be in UTM WGS-84 format for Zone 18S.
         if df.ix[i, huso] == 19:
-            # Transform projection from zone 19 to 18.
             coords = tuple(str(coord) for coord in transform(projection_UTM19S,
                         projection_UTM18S, df.ix[i, este], df.ix[i, norte]))
-          
-        # Coordinates must be in UTM WGS-84 format for Zone 18S.
-        if df.ix[i, huso] == 19:
-            coords = tuple(str(coord) for coord in transform(projection_UTM19S,
-                            projection_UTM18S, df.ix[i, este], df.ix[i, norte]))
-                            
         elif df.ix[i,huso] == 18:
             coords = (str(df.ix[i, este]), str(df.ix[i, norte]))
         else:
@@ -283,7 +287,11 @@ for sheet in ['SING','SIC']:
                 for location in locations:
                     if location[0] == limpiar(df.ix[i,central]):
                         coords = (location[1], location[2])
- 
+        
+        # Correct wrongly inputted coords
+        if name in correct_coords:
+            coords = (correct_coords[name][0], correct_coords[name][1])   
+    
         #Iteramos sobre los 3 tipos de combustibles posibles, 
         # de las columnas correspondientes
         #Llamando a la función que los convierte
@@ -331,7 +339,7 @@ try:
     # setup
     con = psycopg2.connect(database='switch_chile', user='bmaluenda', 
                             host='localhost', port='5915',
-                            password='')
+                            password='clnnl479')
     print ("Connection to database established...")
 except:
     sys.exit("Error connecting to the switch_chile database...")
