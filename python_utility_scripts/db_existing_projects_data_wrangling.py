@@ -15,6 +15,7 @@ import pandas as pd
 from csv import writer, reader
 from pyproj import Proj, transform
 from unidecode import unidecode
+from getpass import getpass
 import psycopg2
 
 if sys.getdefaultencoding() != 'utf-8':
@@ -334,12 +335,16 @@ with open('centrales.csv', 'r') as f:
 
 ##############
 # DB Conection
+
+username = 'bmaluenda'
+passw = getpass('Enter database password for user %s' % username)
+
 try:
     # Remember to enter and/or modify connection parameters accordingly to your
     # setup
-    con = psycopg2.connect(database='switch_chile', user='bmaluenda', 
+    con = psycopg2.connect(database='switch_chile', user=username, 
                             host='localhost', port='5915',
-                            password='clnnl479')
+                            password=passw)
     print ("Connection to database established...")
 except:
     sys.exit("Error connecting to the switch_chile database...")

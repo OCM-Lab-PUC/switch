@@ -15,6 +15,7 @@ import sys, os.path, psycopg2
 from csv import writer, reader
 from unidecode import unidecode
 from pyproj import Proj, transform
+from getpass import getpass
 
 if sys.version_info > (3, 0):
     import urllib.request as request
@@ -411,12 +412,16 @@ for station in subs_for_db:
 
 ##############
 # DB Conection
+
+username = 'bmaluenda'
+passw = getpass('Enter database password for user %s' % username)
+
 try:
     # Remember to enter and/or modify connection parameters accordingly to your
     # setup
-    con = psycopg2.connect(database='switch_chile', user='bmaluenda', 
+    con = psycopg2.connect(database='switch_chile', user=username, 
                             host='localhost', port='5915',
-                            password='clnnl479')
+                            password=passw)
     print ("Connection to database established...")
 except:
     sys.exit("Error connecting to the switch_chile database...")

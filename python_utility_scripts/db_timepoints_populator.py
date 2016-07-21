@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright 2016 The Switch-Chile Authors. All rights reserved.
 # Licensed under the Apache License, Version 2, which is in the LICENSE file.
 # Operations, Control and Markets laboratory at Pontificia Universidad
@@ -13,17 +14,21 @@ populated.
 """
 
 import psycopg2, datetime, sys
+from getpass import getpass
 
 # The timeseries scenario id must be inputted to generate the timepoints
 # corresponding to that set
 population_ts_scenario_id = 1
 
+username = 'bmaluenda'
+passw = getpass('Enter database password for user %s' % username)
+
 try:
     # Remember to enter and/or modify connection parameters accordingly to your
     # setup
-    con = psycopg2.connect(database='switch_chile', user='bmaluenda', 
+    con = psycopg2.connect(database='switch_chile', user=username, 
                             host='localhost', port='5915',
-                            password='')
+                            password=passw)
     print "Connection to database established..."
 except:
     sys.exit("Error connecting to the switch_chile database...")

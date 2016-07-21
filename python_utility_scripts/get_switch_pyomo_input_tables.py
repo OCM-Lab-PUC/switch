@@ -1,12 +1,12 @@
+# -*- coding: utf-8 -*-
+# Copyright 2016 The Switch-Chile Authors. All rights reserved.
+# Licensed under the Apache License, Version 2, which is in the LICENSE file.
+# Operations, Control and Markets laboratory at Pontificia Universidad
+# Católica de Chile.
 """
 
-Date of creation: July 2016
-
-SWITCH-Chile!
-
-This script was written by Benjamin Maluenda for the Operations, Control and
-Markets lab at Pontificia Universidad Catolica de Chile taking the original
-bash script written by JP Carvallo and P Hidalgo as inspiration.
+Retrieves data inputs for the Switch Chile model from the database. Data
+is formatted into corresponding .tab or .dat files.
 
 """
 

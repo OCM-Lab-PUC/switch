@@ -1,19 +1,25 @@
 # -*- coding: utf-8 -*-
+# Copyright 2016 The Switch-Chile Authors. All rights reserved.
+# Licensed under the Apache License, Version 2, which is in the LICENSE file.
+# Operations, Control and Markets laboratory at Pontificia Universidad
+# Católica de Chile.
 """
-Created on Mon Jul 11 16:24:38 2016
 
-@author: alan
+Cleans substation names for transmission lines and uploads inputs into
+the database.
+
 """
 import pandas, os, re, datetime, sys, psycopg2
 from csv import reader
 from unidecode import unidecode
+from getpass import getpass
 
 if sys.getdefaultencoding() != 'utf-8':
     # Character encoding may raise errors if set in ascii or other simple
     # encodings which do not support spanish characters.
     reload(sys)
     sys.setdefaultencoding('utf-8')
-"""
+
 def limpiar(a):
     # Devuelvo un string limpio de carácteres anómalos, espacios y comas
     limpio = unidecode(a.replace(' ','_').replace('ó','o')).lower().replace(',','_').strip('_')
@@ -179,7 +185,7 @@ with open('substations_without_lines.txt', 'w') as f:
 # que existen en nuestra BD
 NeoTransmision.to_csv('NeoTransmision.csv', index = None, float_format = '%.2f', cols=['Sistema', 'SE1', 'SE2', 'Tension','Longitud', 'Capacidad'])
 
-"""
+
 ##############################
 ####### UPLOAD TO DB #########
 
@@ -198,14 +204,19 @@ for row in lines_for_db:
     # If no capacity info, set to 0
     if row[capacity_index] == 'S/I':
         row[capacity_index] = 0
+        
 ##############
 # DB Conection
+
+username = 'bmaluenda'
+passw = getpass('Enter database password for user %s' % username)
+
 try:
     # Remember to enter and/or modify connection parameters accordingly to your
     # setup
-    con = psycopg2.connect(database='switch_chile', user='bmaluenda', 
+    con = psycopg2.connect(database='switch_chile', user=username, 
                             host='localhost', port='5915',
-                            password='clnnl479')
+                            password=passw)
     print ("Connection to database established...")
 except:
     sys.exit("Error connecting to the switch_chile database...")
