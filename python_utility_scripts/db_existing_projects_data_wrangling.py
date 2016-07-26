@@ -26,7 +26,8 @@ if sys.getdefaultencoding() != 'utf-8':
 
 def limpiar(a):
     # Devuelvo un string limpio de carácteres anómalos, espacios y comas
-    limpio = unidecode(a.replace(' ','_').replace('ó','o')).lower().replace(',','_').replace('(','_').replace(')','_').replace('__','_').strip('_')
+    limpio = unidecode(a.replace(' ','_').replace('ó','o')).lower().replace(',','_').replace('.','').replace('(','_').replace(')','_').replace(
+        '__','_').strip('_')
     return limpio
     
 ###############################
