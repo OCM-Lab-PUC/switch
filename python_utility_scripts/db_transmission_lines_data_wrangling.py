@@ -9,7 +9,7 @@ Cleans substation names for transmission lines and uploads inputs into
 the database.
 
 """
-import pandas, os, re, datetime, sys, psycopg2
+import pandas, os, re, datetime, sys, psycopg2, numpy
 from csv import reader
 from unidecode import unidecode
 from getpass import getpass
@@ -50,12 +50,29 @@ def BuscarCorrecto(a1,a2,List):
         return True, a2   
     return False,''
     
+def BuscarCorrectos(a1,a2,List):
+    Encuentro = []
+    if (Reciclar(a1) in List) and Reciclar(a1) not in Encuentro:
+        Encuentro.append(Reciclar(a1))
+    if Reciclar(a2) in List and Reciclar(a2) not in Encuentro:
+        Encuentro.append(Reciclar(a2))
+    if a1 in List and a1 not in Encuentro:
+        Encuentro.append(a1)
+    if a2 in List and a2 not in Encuentro:
+        Encuentro.append(a2)   
+    return Encuentro
+    
 # Traducimos a partir del nombre
 def Traduce(a):
     for i in conversor.index:
         if conversor.ix[i,2] == a or conversor.ix[i,3] == a:
             return conversor.ix[i,0] 
     return a    
+    
+    
+#Sacamos distancias para comparar
+def Distancia(p1,p2):
+    return numpy.power(p1[0]-p2[0],2) + numpy.power(p1[1]-p2[1],2)
 
 # Abrimos los archivos, tener en cuenta si la primera linea es header o no
 transmision = pandas.read_csv('transmision.csv', index_col=False)
@@ -67,27 +84,74 @@ subestacionessing = pandas.read_csv('substations_sing.csv', header = None, index
 subestacionesplant = pandas.read_csv('substations_plants.csv', header = None, index_col=False)
 
 conversor = pandas.read_excel('ConvSubest.xls', sheetname = 0, index_col=False)
+similares = pandas.read_excel('Similares.xlsx', sheetname = 0, index_col=False)
+
+
 
 # Creamos la lista de subestaciones total, añadiendo las del diccionario
 All = []
+Coordenadas = {}
+subsSIC = []
+subsSING = []
+
+#Obtengo todas las centrales en una lista llamada All
+#Correspondientemente, se asocian las coordenadas de cada una en el diccionario Coordenadas
+#Las SE "reemplazo" del archivo de Conversion se les asocia la coordenada de la reemplazada
 
 for i in subestacionessic.index:
     if subestacionessic.ix[i,0] not in All:
         All.append(subestacionessic.ix[i,0])
+        Coordenadas[subestacionessic.ix[i,0]] = [subestacionessic.ix[i,3],subestacionessic.ix[i,4]]
+        
+    if subestacionessic.ix[i,0] not in subsSIC:
+        subsSIC.append(subestacionessic.ix[i,0])
+        
 
 for i in subestacionessing.index:
     if subestacionessing.ix[i,0] not in All:
         All.append(subestacionessing.ix[i,0])
+        Coordenadas[subestacionessing.ix[i,0]] = [subestacionessing.ix[i,3],subestacionessing.ix[i,4]]
+        
+    if subestacionessing.ix[i,0] not in subsSING:
+        subsSING.append(subestacionessing.ix[i,0])
 
 for i in subestacionesplant.index:
     if subestacionesplant.ix[i,0] not in All:
         All.append(subestacionesplant.ix[i,0])
+        Coordenadas[subestacionesplant.ix[i,0]] = [subestacionesplant.ix[i,3],subestacionesplant.ix[i,4]]
+        
+    if (subestacionesplant.ix[i,0] not in subsSIC) and (subestacionesplant.ix[i,2] == 'sic'):
+        subsSIC.append(subestacionesplant.ix[i,0])
+        
+    if (subestacionesplant.ix[i,0] not in subsSING) and (subestacionesplant.ix[i,2] == 'sing'):
+        subsSING.append(subestacionesplant.ix[i,0])
+        
         
 for i in conversor.index:
     if (conversor['Demanda'][i] not in All) and not (pandas.isnull(conversor['Demanda'][i] )):
         All.append(conversor['Demanda'][i])
+        Coordenadas[conversor['Demanda'][i]] = Coordenadas[conversor['SE'][i]] 
+        
     if (conversor['Linea'][i] not in All) and not (pandas.isnull(conversor['Linea'][i] )):
         All.append(conversor['Linea'][i])
+        Coordenadas[conversor['Linea'][i]] = Coordenadas[conversor['SE'][i]] 
+
+
+
+#Lista de subestaciones que tienen nombre similar
+ListaSimilar = []
+ListaSimilares = {}
+
+for j in similares.index:
+    #Si no está, lo añadimos a una lista y diccionario
+    if similares.ix[j,0] not in ListaSimilar:
+        ListaSimilar.append(similares.ix[j,0])
+        ListaSimilares[similares.ix[j,0]] = [similares.ix[j,0], similares.ix[j,1]]
+    
+    else:
+        #Si ya está, añadimos el término que falta
+        ListaSimilares[similares.ix[j,0]].append(similares.ix[j,1])
+        
 
 #Obtenemos las subestaciones de centrales, demandasic y demandasing que faltan
 
@@ -136,7 +200,9 @@ for i in transmision.index:
     SEalt2 = transmision['SEalt2'][i]
     
     #Vemos si está, y si usa SE1 o SEalt1 o una version limpia de estos de nombre
-    BC1 = BuscarCorrecto(SE1, SEalt1, All)    
+    BC1 = BuscarCorrecto(SE1, SEalt1, All)
+        
+        
     #Variable para saber si es que esta
     esta = 1
 
@@ -150,6 +216,11 @@ for i in transmision.index:
             VoltEmpty2.append([transmision['Tension (KV)'][i],transmision['Sistema'][i]])
     
     BC2 = BuscarCorrecto(SE2, SEalt2, All)
+    
+    
+        
+        
+    
     if BC2[0]:
         pass
     else:
@@ -158,6 +229,47 @@ for i in transmision.index:
             esta = 0
             CentEmpty2.append(SEalt2)
             VoltEmpty2.append([transmision['Tension (KV)'][i],transmision['Sistema'][i]])
+            
+    
+    #####################
+    ####Similares########
+    #####################    
+    
+    
+    #Reviso si los nombres encontrados están en la lista de potenciales similar, siempre cuando existan ambos
+    if (BC1[1] in ListaSimilar or BC2[1] in ListaSimilar) and BC1[0] and BC2[0]:
+        
+        #Añado los nombres similares a una lista
+        if BC1[1] in ListaSimilar:
+            ConjuntoBC1 = ListaSimilares[BC1[1]]
+        #Si no tiene nombres similares, solo queda el mismo nombre
+        else:
+            ConjuntoBC1 = [BC1[1]]
+            
+        if BC2[1] in ListaSimilar:
+            ConjuntoBC2 = ListaSimilares[BC2[1]]
+        else:
+            ConjuntoBC2 = [BC2[1]]
+            
+        #Propongo un candidato de minimo, tomando los primeros
+        Minimo = [ConjuntoBC1[0], ConjuntoBC2[0]]
+        Dminimo = Distancia(Coordenadas[ConjuntoBC1[0]], Coordenadas[ConjuntoBC2[0]]) 
+        
+        for A1 in ConjuntoBC1:
+            for A2 in ConjuntoBC2:
+                if Distancia(Coordenadas[A1], Coordenadas[A2]) < Dminimo:
+                    Minimo = [A1, A2]
+                    Dminimo = Distancia(Coordenadas[A1], Coordenadas[A2])
+        
+        #Si al menos uno de ellos cambia, reemplazamos
+        if BC1[1] != Minimo[0] or BC2[1] != Minimo[1]:
+            #print(BC1[1],',',BC2[1],'=>',Minimo[0],',',Minimo[1])
+            BC1 = [BC1[0], Minimo[0]]
+            BC2 = [BC2[0], Minimo[1]]
+            
+    #####################
+            
+            
 
     #Si esta, la añadimos a la nueva transmision
     if esta == 1:
