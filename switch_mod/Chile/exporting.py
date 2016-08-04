@@ -10,7 +10,8 @@ This tables are mostly useful for quick iterations when testing code.
 import os, time, sys
 from pyomo.environ import *
 from switch_mod.financials import *
-
+import switch_mod.export as export
+    
 def define_components(mod):
     #Define dual variables, so that marginal costs can be computed eventually
     if not hasattr(mod, 'dual'):
@@ -36,52 +37,61 @@ def define_components(mod):
                     m.discount_rate, m.period_length_years[p]) * fin.future_to_present_value(
                     m.discount_rate, (m.period_start[p] - m.base_financial_year)) for p in m.PERIODS))
 
-def save_results(model, instance, outdir):
-    import switch_mod.export as export
-    
+
+def post_solve(instance, outdir):
     summaries_dir = os.path.join(outdir,"Summaries")
     if not os.path.exists(summaries_dir):
         os.makedirs(summaries_dir)
 
-
     print "Starting to print summaries"
-    sys.stdout.flush()
     start=time.time()
 
     """
     This table writes out the marginal costs of supplying energy in each timepoint in US$/MWh.
     """
-    print "marginal_costs_lz_tp.txt..."
+    print "marginal_costs_lz_tp.csv..."
     export.write_table(
         instance, instance.TIMEPOINTS, instance.LOAD_ZONES,
-        output_file=os.path.join(summaries_dir, "marginal_costs_lz_tp.txt"),
+        output_file=os.path.join(summaries_dir, "marginal_costs_lz_tp.csv"),
         headings=("timepoint","load_zones","marginal_cost"),
         values=lambda m, tp, lz: (tp, lz, m.dual[m.Energy_Balance[lz, tp]] / (m.tp_weight_in_year[tp] * uniform_series_to_present_value(
                 m.discount_rate, m.period_length_years[m.tp_period[tp]]) * future_to_present_value(
                 m.discount_rate, (m.period_start[m.tp_period[tp]] - m.base_financial_year)))
         ))
+    
+    """
+    This table writes out the fuel consumption in MMBTU per hour. 
+    """
+    # print "energy_produced_in_period_by_each_project.csv..."
+    # export.write_table(
+    #     instance, instance.PERIODS, instance.PROJECTS,
+    #     output_file=os.path.join(summaries_dir, "energy_produced_in_period_by_each_project.csv"), 
+    #     headings=("period", "project", "energy_produced_GWh"),
+    #     values=lambda m, p, proj: (p, proj,) + tuple(
+    #         sum(m.DispatchProj[proj,tp]*m.tp_weight[tp] for tp in m.PERIOD_TPS[p])/1000)
+    #     )
 
     """
     This table writes out the fuel consumption in MMBTU per hour. 
     """
-    print "fuel_consumption_tp_hourly.txt..."
+    print "fuel_consumption_tp_hourly.csv..."
     export.write_table(
         instance, instance.TIMEPOINTS,
-        output_file=os.path.join(summaries_dir, "fuel_consumption_tp_hourly.txt"),
+        output_file=os.path.join(summaries_dir, "fuel_consumption_tp_hourly.csv"),
         headings=("timepoint",) + tuple(f for f in instance.FUELS),
         values=lambda m, tp: (tp,) + tuple(
             sum(m.ProjFuelUseRate[proj, t, f] for (proj,t) in m.PROJ_WITH_FUEL_DISPATCH_POINTS 
                 if m.g_energy_source[m.proj_gen_tech[proj]] == f and t == tp)
             for f in m.FUELS)
-    )
+        )
     
     """
     This table writes out the fuel consumption in total MMBTU consumed in each period.
     """
-    print "fuel_consumption_periods_total.txt..."
+    print "fuel_consumption_periods_total.csv..."
     export.write_table(
         instance, instance.PERIODS,
-        output_file=os.path.join(summaries_dir, "fuel_consumption_periods_total.txt"),
+        output_file=os.path.join(summaries_dir, "fuel_consumption_periods_total.csv"),
         headings=("period",) + tuple(f for f in instance.FUELS),
         values=lambda m, p: (p,) + tuple(
             sum(m.ProjFuelUseRate[proj, tp, f] * m.tp_weight[tp] for (proj, tp) in m.PROJ_WITH_FUEL_DISPATCH_POINTS 
@@ -90,12 +100,13 @@ def save_results(model, instance, outdir):
     )
 
     """
-    This table writes out cummulative capacity built for each gen tech on each period.
+    This table writes out the capacity that it available in each period
+    by technology.
     """
-    print "build_proj_by_tech_p.txt..."
+    print "gen_tech_online_capacity_by_period.csv..."
     export.write_table(
         instance, instance.GENERATION_TECHNOLOGIES,
-        output_file=os.path.join(summaries_dir, "build_proj_by_tech_p.txt"),
+        output_file=os.path.join(summaries_dir, "build_proj_by_tech_p.csv"),
         headings=("gentech","Legacy") + tuple(p for p in instance.PERIODS),
         values=lambda m, g: (g, sum(m.BuildProj[proj, bldyr] for (proj, bldyr) in m.PROJECT_BUILDYEARS
             if m.proj_gen_tech[proj] == g and bldyr not in m.PERIODS)) + tuple(
@@ -106,15 +117,28 @@ def save_results(model, instance, outdir):
     """
     This table writes out the aggregated dispatch of each gen tech on each timepoint.
     """
-    print "dispatch_proj_by_tech_tp.txt..."
+    print "dispatch_proj_by_tech_tp.csv..."
     export.write_table(
         instance, instance.TIMEPOINTS,
-        output_file=os.path.join(summaries_dir, "dispatch_proj_by_tech_tp.txt"),
-        headings=("gentech",) + tuple(g for g in instance.GENERATION_TECHNOLOGIES),
+        output_file=os.path.join(summaries_dir, "dispatch_proj_by_tech_tp.csv"),
+        headings=("gentech",) + tuple(g for g in instance.GENERATION_TECHNOLOGIES) + ("total",),
         values=lambda m, tp: (tp,) + tuple(
             sum(m.DispatchProj[proj, t] for (proj, t) in m.PROJ_DISPATCH_POINTS 
                 if m.proj_gen_tech[proj] == g and t == tp) 
-            for g in m.GENERATION_TECHNOLOGIES)
+            for g in m.GENERATION_TECHNOLOGIES) + ( 
+            sum(m.DispatchProj[proj, t] for (proj, t) in m.PROJ_DISPATCH_POINTS if t == tp),)
+    )
+    
+    """
+    This table writes out reservoir levels.
+    """
+    print "reservoir_final_vols_tp.csv..."
+    export.write_table(
+        instance, instance.TIMEPOINTS,
+        output_file=os.path.join(summaries_dir, "reservoir_final_vols_tp.csv"),
+        headings=("timepoints",) + tuple(r for r in instance.RESERVOIRS) + ("total",),
+        values=lambda m, tp: (tp,) + tuple(m.ReservoirFinalvol[r, tp] - m.initial_res_vol[r] for r in m.RESERVOIRS) + ( 
+            sum(m.ReservoirFinalvol[r, tp] - m.initial_res_vol[r] for r in m.RESERVOIRS),)
     )
 
     """
@@ -129,10 +153,10 @@ def save_results(model, instance, outdir):
     """
     This table writes out the dispatch of each gen tech on each timepoint and load zone.
     #This process is extremely slow, need to make it efficient
-    print "dispatch_proj_by_tech_lz_tp.txt..."
+    print "dispatch_proj_by_tech_lz_tp.csv..."
     export.write_table(
         instance, instance.TIMEPOINTS, instance.LOAD_ZONES,
-        output_file=os.path.join(summaries_dir, "dispatch_proj_by_tech_lz_tp.txt"),
+        output_file=os.path.join(summaries_dir, "dispatch_proj_by_tech_lz_tp.csv"),
         headings=("load zone", "timepoint",) + tuple(g for g in instance.GENERATION_TECHNOLOGIES),
         values=lambda m, tp, lz: (lz, tp,) + tuple(
             sum(m.DispatchProj[proj, t] for (proj, t) in m.PROJ_DISPATCH_POINTS 

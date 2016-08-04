@@ -41,7 +41,11 @@ def ConvUnid(a,b,c):
         if conversion.ix[i,0] == a and conversion.ix[i,1] == c:
             #Y no es nulo
             if not pd.isnull(conversion.ix[i,4]):
+                print('Cambiado exitosamente ',a,c)
                 return [conversion.ix[i,2],conversion.ix[i,4],conversion.ix[i,3]]
+            else:
+                print('Solo se cambió nombre de ',a,c,' y no las unidades')
+                return [conversion.ix[i,2],b,c]
     print('Factor de',a,c,'no encontrado')        
     return [a,b,c]    
  
@@ -57,6 +61,7 @@ for i in detallesic.index:
     
 #Buscamos el minimo dependiendo del sistema y central
 def Minimo(system, central):
+    return 0
     centsic = 17
     pminsic = 23
     if central[-1].isdigit():
@@ -320,74 +325,4 @@ for sheet in ['SING','SIC']:
 
 out.close()
 out1.close()
-
-##############################
-####### UPLOAD TO DB #########
-
-projects_for_db = []
-with open('centrales.csv', 'r') as f:
-    read = reader(f)
-    for row in read:
-        for i in range(11, 20):
-            # Enter null values if fuel info not present
-            if not row[i]:
-                row[i] = None
-        projects_for_db.append(row)
-
-##############
-# DB Conection
-
-username = 'bmaluenda'
-passw = getpass('Enter database password for user %s' % username)
-
-try:
-    # Remember to enter and/or modify connection parameters accordingly to your
-    # setup
-    con = psycopg2.connect(database='switch_chile', user=username, 
-                            host='localhost', port='5915',
-                            password=passw)
-    print ("Connection to database established...")
-except:
-    sys.exit("Error connecting to the switch_chile database...")
-
-cur = con.cursor()
-
-# Clean database
-try:
-    cleaning = "DELETE FROM chile_new.geo_existing_projects"
-    cur.execute(cleaning)
-    print("Table erased")
-except psycopg2.DatabaseError as e:
-    if con:
-        con.rollback()
-    print(e)
-
-# Load new data
-try:
-    values_str = ','.join(cur.mogrify("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-        project) for project in projects_for_db)
-    query_str = "INSERT INTO chile_new.geo_existing_projects (db_name, system, units, main_energy_source, start_date, max_net_power, min_net_power, connection_point, voltage_connection, easting, northing, fuel_1, specific_consumption_1, units_specific_consumption_1, fuel_2, specific_consumption_2, units_specific_consumption_2, fuel_3, specific_consumption_3, units_specific_consumption_3) VALUES "+values_str+";"
-    cur.execute(query_str)
-    con.commit()
-    print ("New existing project data has been uploaded to the DB.")
-except psycopg2.DatabaseError as e:
-    if con:
-        con.rollback()
-    print(e)
-    
-# Update geometry column with new coordinates
-try:
-    query_str = "UPDATE chile_new.geo_existing_projects SET geom = ST_SetSrid(ST_MakePoint(easting, northing), 32718)"
-    cur.execute(query_str)
-    con.commit()
-    print ("Updated geometry column with new data.")
-except psycopg2.DatabaseError as e:
-    if con:
-        con.rollback()
-    print(e)
-
-if cur:
-    cur.close()
-if con:
-    con.close()
 
