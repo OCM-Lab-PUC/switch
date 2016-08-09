@@ -164,21 +164,14 @@ def define_components(mod):
         mod.WATER_CONNECTIONS, mod.TIMEPOINTS,
         rule=lambda m, wc, t: m.DispatchWater[wc, t] <= m.WC_capacity[wc])
     # It may be redundant to enforce eco flows when they are 0. Could find a better way.
-    # mod.min_eco_flow = Param(
-    #     mod.WATER_CONNECTIONS, mod.TIMEPOINTS,
-    #     within=NonNegativeReals,
-    #     default=lambda m, r, t: 0.0)
-    # # Ecological flows are enforced per timepoint. This can be redundant
-    # # with the DispatchLowerLimit expression in the project.commit module,
-    # # but I think it's better to explicitely write it down.
-    # # Summing turbinated and spilled flows allows to put the unit under
-    # # maintenance and have a null dispatch, while spilling water to keep
-    # # the minimim eco flow.
-    # mod.Enforce_Min_Eco_Flow = Constraint(
-    #     mod.RESERVOIR_PROJ_DISPATCH_POINTS,
-    #     rule=lambda m, r, t: (
-    #         m.TurbinatedFlow[r, t] + m.SpilledFlow[r, t]
-    #         >= m.min_eco_flow[r, t]))
+    mod.min_eco_flow = Param(
+        mod.WATER_CONNECTIONS, mod.TIMEPOINTS,
+        within=NonNegativeReals,
+        default=lambda m, w, t: 0.0)
+    mod.Enforce_Min_Eco_Flow = Constraint(
+        mod.WATER_CONNECTIONS, mod.TIMEPOINTS,
+        rule=lambda m, w, t: (
+            m.DispatchWater[w, t] >= m.min_eco_flow[w, t]))
     
     # Nodal constraints
     mod.WaterNodeNet = Expression(
@@ -187,13 +180,6 @@ def define_components(mod):
             for wc in m.WATER_CONNECTIONS if m.WC_body_to[wc] == w) - 
             sum( m.DispatchWater[wc, t] for wc in m.WATER_CONNECTIONS 
             if m.WC_body_from[wc] == w))
-    # def Enforce_Water_Node_Balance(m, w, t):
-    #     if mod.is_sink[w]:
-    #         return (m.water_node_inflow[w, t] + m.WaterNodeNet[w, t] ==
-    #         m.water_node_demand[w, t] + m.WaterNodeSpilling[w, t])
-    #     else:
-    #         return (m.water_node_inflow[w, t] + m.WaterNodeNet[w, t] ==
-    #         m.water_node_demand[w, t])
     mod.Water_Node_Balance_Sinks = Constraint(
         mod.WATER_SINKS, mod.TIMEPOINTS,
         rule=lambda m, w, t: (m.water_node_inflow[w, t] + m.WaterNodeNet[w, t] ==
@@ -283,8 +269,8 @@ def load_inputs(mod, switch_data, inputs_dir):
         auto_select=True,
         index=mod.HYDRO_PROJECTS,
         param=(mod.proj_hydro_efficiency, mod.hidraulic_location))
-    # switch_data.load_aug(
-    #     optional=True,
-    #     filename=os.path.join(inputs_dir, 'min_eco_flows.tab'),
-    #     auto_select=True,
-    #     param=(mod.min_eco_flow))
+    switch_data.load_aug(
+        optional=True,
+        filename=os.path.join(inputs_dir, 'min_eco_flows.tab'),
+        auto_select=True,
+        param=(mod.min_eco_flow))
