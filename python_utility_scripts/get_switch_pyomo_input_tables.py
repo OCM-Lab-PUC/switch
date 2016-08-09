@@ -52,8 +52,7 @@ parser.add_argument(
     help='Directory where the inputs will be built (default is "inputs")')
 args = parser.parse_args()
 
-passw = 'trapenses4860'
-#passw = getpass.getpass('Enter database password for user %s:' % args.U)
+passw = getpass.getpass('Enter database password for user %s:' % args.U)
 
 try:
     # Connection settings are determined by parsed command line inputs
@@ -87,7 +86,7 @@ os.chdir(args.i)
 # The format for dat files is the same as in AMPL dat files.
 
 print '\nStarting data copying from the database to input files for scenario:\n "%s"' % scenario_name
-    
+
 # Write general scenario parameters into documentation file
 print 'Writing scenario documentation into scenario_params.txt.'
 with open('scenario_params.txt', 'w') as f:
@@ -99,15 +98,15 @@ with open('scenario_params.txt', 'w') as f:
 # TIMESCALES
 
 print '  periods.tab...'
-cur.execute('SELECT DISTINCT p.period_name, period_start, period_end FROM chile_new.timescales_sample_timeseries sts JOIN chile_new.timescales_population_timeseries pts ON sts.sampled_from_population_timeseries_id=pts.population_ts_id JOIN chile_new.timescales_periods p USING (period_id) WHERE sample_ts_scenario_id=%s ORDER BY 1;' % sample_ts_scenario_id)
+cur.execute('SELECT DISTINCT p.period_name, period_start, period_end FROM chile_new.timescales_sample_timeseries sts JOIN chile_new.timescales_population_timeseries pts ON sts.sampled_from_population_timeseries_id=pts.population_ts_id JOIN chile_new.timescales_periods p USING (period_id) WHERE sample_ts_scenario_id=%s ORDER BY 1;' % (sample_ts_scenario_id))
 write_tab('periods',['INVESTMENT_PERIOD','period_start','period_end'],cur)
 
 print '  timeseries.tab...'
-cur.execute('SELECT sample_ts_id,period_name,hours_per_tp::integer,sts.num_timepoints,sts.scaling_to_period FROM chile_new.timescales_sample_timeseries sts JOIN chile_new.timescales_population_timeseries pts ON sts.sampled_from_population_timeseries_id=pts.population_ts_id WHERE sample_ts_scenario_id=%s ORDER BY 1;' % sample_ts_scenario_id)
+cur.execute('SELECT sample_ts_id,period_name,hours_per_tp::integer,sts.num_timepoints,sts.scaling_to_period FROM chile_new.timescales_sample_timeseries sts JOIN chile_new.timescales_population_timeseries pts ON sts.sampled_from_population_timeseries_id=pts.population_ts_id AND sample_ts_scenario_id=%s ORDER BY 1;' % (sample_ts_scenario_id))
 write_tab('timeseries', ['TIMESERIES','ts_period','ts_duration_of_tp','ts_num_tps','ts_scale_to_period'], cur)
 
 print '  timepoints.tab...'
-cur.execute("SELECT sample_tp_id,to_char(timestamp, 'YYYYMMDDHH24'),sample_ts_id FROM chile_new.timescales_sample_timepoints JOIN chile_new.timescales_sample_timeseries USING (sample_ts_id) WHERE sample_ts_scenario_id=%s ORDER BY 1;" % sample_ts_scenario_id)
+cur.execute("SELECT sample_tp_id,to_char(timestamp, 'YYYYMMDDHH24'),sample_ts_id FROM chile_new.timescales_sample_timepoints JOIN chile_new.timescales_sample_timeseries USING (sample_ts_id) WHERE sample_ts_scenario_id=%s ORDER BY 1;" % (sample_ts_scenario_id))
 write_tab('timepoints', ['timepoint_id','timestamp','timeseries'], cur)
 
 ########################################################
@@ -183,17 +182,19 @@ write_tab('gen_new_build_costs',['generation_technology','investment_period','g_
 ########################################################
 # PROJECTS
 
+excluded_projs = ('chapiquina','chiburgo','palmucho')
+
 print '  project_info.tab...'
-cur.execute("SELECT project_name, gen_tech, load_zone, connect_cost_per_mw, variable_o_m, full_load_heat_rate, forced_outage_rate, scheduled_outage_rate, project_id, capacity_limit_mw, hydro_efficiency FROM chile_new.project_info_existing \
-    UNION SELECT project_name, gen_tech, load_zone, connect_cost_per_mw, variable_o_m, full_load_heat_rate, forced_outage_rate, scheduled_outage_rate, project_id, capacity_limit_mw, hydro_efficiency FROM chile_new.project_info_new JOIN chile_new.new_projects_sets USING (project_id)WHERE new_projects_sets_id = %s ORDER BY 2,3;" % new_projects_id)
+cur.execute("SELECT project_name, gen_tech, load_zone, connect_cost_per_mw, variable_o_m, full_load_heat_rate, forced_outage_rate, scheduled_outage_rate, project_id, capacity_limit_mw, hydro_efficiency FROM chile_new.project_info_existing WHERE project_name NOT IN %s\
+    UNION SELECT project_name, gen_tech, load_zone, connect_cost_per_mw, variable_o_m, full_load_heat_rate, forced_outage_rate, scheduled_outage_rate, project_id, capacity_limit_mw, hydro_efficiency FROM chile_new.project_info_new JOIN chile_new.new_projects_sets USING (project_id) WHERE new_projects_sets_id = %s ORDER BY 2,3;" % (excluded_projs, new_projects_id))
 write_tab('project_info',['PROJECT','proj_gen_tech','proj_load_zone','proj_connect_cost_per_mw','proj_variable_om','tproj_full_load_heat_rate','proj_forced_outage_rate','proj_scheduled_outage_rate','proj_dbid','proj_capacity_limit_mw','proj_hydro_efficiency'],cur)
 
 print '  proj_existing_builds.tab...'
-cur.execute("SELECT project_name, start_year, capacity_mw FROM chile_new.project_info_existing;")
+cur.execute("SELECT project_name, start_year, capacity_mw FROM chile_new.project_info_existing WHERE project_name NOT IN %s;" % (excluded_projs,))
 write_tab('proj_existing_builds',['PROJECT','build_year','proj_existing_cap'],cur)
 
 print '  proj_build_costs.tab...'
-cur.execute("SELECT project_name, start_year, overnight_cost, fixed_o_m FROM chile_new.project_info_existing;")
+cur.execute("SELECT project_name, start_year, overnight_cost, fixed_o_m FROM chile_new.project_info_existing WHERE project_name NOT IN %s;" % (excluded_projs,))
 write_tab('proj_build_costs',['PROJECT','build_year','proj_overnight_cost','proj_fixed_om'],cur)
 
 ########################################################
@@ -217,14 +218,128 @@ with open('financials.dat','w') as f:
 
 #The order is:
 # 1: Fill new solar and wind
-# 2: Fill existing dam plants
-# 3: Fill existing solar, ror and wind
+# 2: Fill existing solar and wind with makeshift values
+# 3: Fill existing RoR projects. They have a constant flow per month,
+# specified for the first day of every month. This flow is multiplied by
+# the turbine's efficiency.
 print '  variable_capacity_factors.tab...'
 cur.execute("SELECT project_name, sample_tp_id, CASE WHEN capacity_factor>1.999 THEN 1.999 ELSE capacity_factor END FROM chile_new.variable_capacity_factors_new cf JOIN (SELECT * FROM chile_new.timescales_sample_timepoints JOIN chile_new.timescales_sample_timeseries USING (sample_ts_id) WHERE sample_ts_scenario_id=%s) tps ON TO_CHAR(cf.timestamp_cst,'MMDDHH24')=TO_CHAR(tps.timestamp,'MMDDHH24') JOIN chile_new.new_projects_sets USING (project_id) WHERE new_projects_sets_id=%s \
-    UNION SELECT project_name, sample_tp_id, CASE WHEN capacity_factor>1.999 THEN 1.999 ELSE capacity_factor END FROM chile_new.variable_capacity_factors_existing cf JOIN (SELECT * FROM chile_new.timescales_sample_timepoints JOIN chile_new.timescales_sample_timeseries USING (sample_ts_id) WHERE sample_ts_scenario_id=%s) tps ON TO_CHAR(cf.timestamp_cst,'MMDDHH24')=TO_CHAR(tps.timestamp,'MMDDHH24') WHERE project_name != 'PV' AND project_name != 'Wind' AND project_name != 'Hydro_RoR'\
     UNION SELECT info.project_name, sample_tp_id, capacity_factor FROM chile_new.variable_capacity_factors_existing cf JOIN chile_new.project_info_existing info ON info.gen_tech = cf.project_name JOIN (SELECT * FROM chile_new.timescales_sample_timepoints JOIN chile_new.timescales_sample_timeseries USING (sample_ts_id) WHERE sample_ts_scenario_id=%s) tps ON TO_CHAR(cf.timestamp_cst,'MMDDHH24')=TO_CHAR(tps.timestamp,'MMDDHH24') \
-    ORDER BY 1,2;" % (sample_ts_scenario_id, new_projects_id,sample_ts_scenario_id,sample_ts_scenario_id))
+    UNION SELECT i.project_name, sample_tp_id, CASE WHEN (inflow*hydro_efficiency)/capacity_limit_mw < 2 THEN (inflow*hydro_efficiency)/capacity_limit_mw ELSE 1.9999 END FROM chile_new.project_info_existing i JOIN chile_new.hydrologies h ON h.flow_name = i.project_name AND hyd_num=%s AND gen_tech='Hydro_RoR' JOIN (SELECT * FROM chile_new.timescales_sample_timepoints JOIN chile_new.timescales_sample_timeseries USING (sample_ts_id) WHERE sample_ts_scenario_id=%s) tps ON TO_CHAR(tps.timestamp,'MM') = TO_CHAR(h.year_month_day,'MM')\
+    ORDER BY 1,2;" % (sample_ts_scenario_id, new_projects_id,sample_ts_scenario_id, hydro_id, sample_ts_scenario_id))
 write_tab('variable_capacity_factors',['PROJECT','timepoint','proj_max_capacity_factor'],cur)
+
+# (SELECT * FROM chile_new.timescales_sample_timepoints JOIN chile_new.timescales_sample_timeseries USING (sample_ts_id) WHERE sample_ts_scenario_id=%s) tps CROSS JOIN chile_new.project_info_existing i JOIN chile_new.hydrologies h ON TO_CHAR(tps.timestamp,'MM') = TO_CHAR(h.year_month_day,'MM') AND h.flow_name = i.project_name WHERE hyd_num=%s AND gen_tech='Hydro_RoR' \
+
+if hydro_id != 0:
+    
+    res = {
+        'lago_laja':[420967311,5573539080,1135116962,1135116962],
+        'poza_polcura':[0.1,1079195,827254,827254],
+        'laguna_invernada':[222715,180438959,68722330,68722330],
+        'laguna_del_maule':[0.1,1582508900,492530900,492530900],
+        'embalse_colbun':[380201656,1557811776,1041034239,1041034239],
+        'lago_rapel':[142645186,433315507,228898545,228898545],
+        'lago_chapo':[0.1,1065468500,107937360,107937360],
+        'embalse_ralco':[409083898,1172732685,417586225,417586225],
+        'embalse_pangue':[26600000,71960000,65168936,65168936],
+        'embalse_melado':[106580000,129562077,116985915,116985915],
+        'embalse_machicura':[2330011,17700920,11634941,11634941]}
+        
+    print '  reservoirs.tab...'
+    with open('reservoirs.tab','w') as f:
+        f.write('RESERVOIRS\treservoir_min_vol\treservoir_max_vol\tinitial_res_vol\tfinal_res_vol\n')
+        for r in res:
+            f.write(r + '\t' + str(res[r][0]) + '\t' + str(res[r][1]) + '\t' + str(res[r][2]) + '\t' + str(res[r][3]) + '\n')
+      
+    print '  reservoir_tp_data.tab...'
+    cur.execute("SELECT flow_name, sample_tp_id, inflow FROM chile_new.hydrologies h JOIN (SELECT * FROM chile_new.timescales_sample_timepoints JOIN chile_new.timescales_sample_timeseries USING (sample_ts_id) WHERE sample_ts_scenario_id=%s) tps ON TO_CHAR(tps.timestamp,'MMDD') = TO_CHAR(h.year_month_day,'MMDD') WHERE hyd_num = %s AND flow_name IN %s ORDER BY 1,2;" % (sample_ts_scenario_id,hydro_id,tuple(res.keys())))
+    write_tab('reservoir_tp_data',['RESERVOIRS','timepoint','reservoir_inflow'],cur)
+
+    nodes = {
+        'nodo_maule_isla':0,
+        'nodo_maule_melado':0,
+        'nodo_abanico':0,
+        'nodo_rucue':0,
+        'riego_tucapel':1,
+        'riego_melado':1,
+        'riego_maule_norte_alto':0,
+        'maule_sink':1,
+        'nodo_antuco':0,
+        'nodo_riego':0,
+        'rapel_sink':1,
+        'chapo_sink':1,
+        'pangue_sink':1,
+        'ralco_sink':1}
+    
+    print '  water_node_flows.tab...'
+    cur.execute("SELECT flow_name, sample_tp_id, inflow, outflow*0.01 FROM chile_new.hydrologies h JOIN (SELECT * FROM chile_new.timescales_sample_timepoints JOIN chile_new.timescales_sample_timeseries USING (sample_ts_id) WHERE sample_ts_scenario_id=%s) tps ON TO_CHAR(tps.timestamp,'MMDD') = TO_CHAR(h.year_month_day,'MMDD') WHERE hyd_num = %s AND flow_name IN %s ORDER BY 1,2;" % (sample_ts_scenario_id,hydro_id,tuple(nodes.keys())))
+    write_tab('water_node_flows',['WATER_NODES','timepoint','water_node_inflow','water_node_demand'],cur)
+    
+    print '  water_nodes.tab...'
+    with open('water_nodes.tab','w') as f:
+        f.write('WATER_NODES\tconstant_demand\tis_sink\n')
+        for node in nodes:
+            f.write(node + '\t.\t' + str(nodes[node]) + '\n')
+            
+    wcs = {
+    'ojos_de_agua':['laguna_invernada','nodo_maule_isla','9999','1'],
+    'cipreses':['laguna_invernada','nodo_maule_isla','9999','0'],
+    'maule':['laguna_del_maule','nodo_maule_isla','9999','0'],
+    'isla_curillinque_loma_alta':['nodo_maule_isla','nodo_maule_melado','9999','0'],
+    'maule_melado_maule_norte':['nodo_maule_melado','riego_maule_norte_alto','9999','0'],
+    'boc_maule_melado':['riego_maule_norte_alto','embalse_melado','9999','0'],
+    'pehuenche':['embalse_melado','embalse_colbun','9999','0'],
+    'riego_embalse_melado':['embalse_melado','riego_melado','9999','0'],
+    'boc_maule_colbun':['riego_maule_norte_alto','embalse_colbun','9999','0'],
+    'colbun':['embalse_colbun','embalse_machicura','9999','0'],
+    'machicura_san_ignacio':['embalse_machicura','maule_sink','9999','0'],
+    'el_toro':['lago_laja','poza_polcura','9999','0'],
+    'fil_laja':['lago_laja','nodo_abanico','9999','1'],
+    'abanico':['nodo_abanico','nodo_antuco','9999','0'],
+    'polcura':['poza_polcura','nodo_antuco','9999','0'],
+    'antuco':['nodo_antuco','nodo_riego','9999','0'],
+    'boc_rucue':['nodo_riego','nodo_rucue','9999','0'],
+    'rucue_quilleco':['nodo_rucue','riego_tucapel','9999','0'],
+    'riegos':['nodo_riego','riego_tucapel','9999','0'],
+    'rapel':['lago_rapel','rapel_sink','9999','0'],
+    'canutillar':['lago_chapo','chapo_sink','9999','0'],
+    'pangue':['embalse_pangue','pangue_sink','9999','0'],
+    'ralco':['embalse_ralco','ralco_sink','9999','0']    
+    }
+    
+    print '  water_connections.tab...'
+    with open('water_connections.tab','w') as f:
+        f.write('WATER_CONNECTIONS\tWC_body_from\tWC_body_to\tWC_capacity\tis_a_filtration\n')
+        for wc in wcs:
+            f.write(wc + '\t' + wcs[wc][0] + '\t' + wcs[wc][1] + '\t' + wcs[wc][2] + '\t' + wcs[wc][3] + '\n')
+            
+    projs = {
+    'pangue':['0.8851','pangue'],
+    'el_toro':['4.74','el_toro'],
+    'ralco':['1.55','ralco'],
+    'canutillar':['1.92','canutillar'],
+    'rapel':['0.674','rapel'],
+    'pehuenche':['1.666667','pehuenche'],
+    'colbun':['1.4286','colbun'],
+    'cipreses':['2.7857','cipreses'],
+    'machicura':['0.321428571','machicura_san_ignacio'],
+    'ojos_de_agua':['0.676691729','ojos_de_agua'],
+    'central_isla':['0.81','isla_curillinque_loma_alta'],
+    'curillinque':['1.012','isla_curillinque_loma_alta'],
+    'loma_alta':['0.452','isla_curillinque_loma_alta'],
+    'san_ignacio':['0.191','machicura_san_ignacio'],
+    'central_abanico':['1.27','abanico'],
+    'antuco':['1.63','antuco'],
+    'rucue':['1.33','rucue_quilleco'],
+    'central_quilleco':['0.55','rucue_quilleco'],
+    }
+    
+    print '  hydro_projects.tab...'
+    with open('hydro_projects.tab','w') as f:
+        f.write('HYDRO_PROJECTS\tproj_hydro_efficiency\thidraulic_location\n')
+        for proj in projs:
+            f.write(proj + '\t' + projs[proj][0] + '\t' + projs[proj][1] + '\n')
 
 if cur:
     cur.close()

@@ -18,7 +18,7 @@ from getpass import getpass
 
 # The timeseries scenario id must be inputted to generate the timepoints
 # corresponding to that set
-sample_ts_scenario_id = 1
+sample_ts_scenario_id = 2
 
 username = 'bmaluenda'
 passw = getpass('Enter database password for user %s' % username)

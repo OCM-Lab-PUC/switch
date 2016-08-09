@@ -1,0 +1,10 @@
+WATER_CONNECTIONS	WC_body_from	WC_body_to	WC_capacity	is_a_filtration
+pan pangue  pangue_end  9999    0
+tor el_toro el_toro_end 9999    0
+ral ralco   ralco_end   9999    0
+can canutillar  canutillar_end  9999    0
+rap rapel   rapel_end   9999    0
+peh pehuenche   pehuenche_end   9999    0
+col colbun  colbun_end  9999    0
+cip cipreses    cipreses_end    9999    0
+mac machicura   machicura_end   9999    0
