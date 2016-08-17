@@ -16,6 +16,7 @@ populated.
 import psycopg2, sys
 from getpass import getpass
 from datetime import date, timedelta, time, datetime
+from calendar import monthrange
 
 username = 'bmaluenda'
 passw = getpass('Enter database password for user %s' % username)
@@ -32,38 +33,58 @@ except:
 
 cur = con.cursor()
 
+def add_months(sourcedate,months):
+     month = sourcedate.month - 1 + months
+     year = int(sourcedate.year + month / 12 )
+     month = month % 12 + 1
+     day = min(sourcedate.day,monthrange(year,month)[1])
+     return date(year,month,day)
+
+
 ###########################
-population_ts_scenario_id = 2
-number_weeks = 1560
+# Population: 1 day hourly res. per month
+###########################
+population_ts_scenario_id = 4
 ts_up = []
 
-day = date(2015,1,1)
-ts_id = 1
+day = date(2015,1,15)
+ts_id = 394
 while day < date(2045,1,1):
     row=[]
     row.append(population_ts_scenario_id)
     row.append(ts_id)
-    row.append(str(day))
-    if day.year < 2025:
-        row.append(1)
-        row.append('2020')
-    elif day.year >= 2025 and day.year < 2035:
-        row.append(2)
-        row.append('2030')
+    row.append(str(day)+'_hourly')
+    
+    if day.year < 2020:
+        row.append(6)
+        row.append('2017')
+    elif day.year >= 2020 and day.year < 2025:
+        row.append(7)
+        row.append('2022')
+    elif day.year >= 2025 and day.year < 2030:
+        row.append(8)
+        row.append('2027')
+    elif day.year >= 2030 and day.year < 2035:
+        row.append(9)
+        row.append('2032')
+    elif day.year >= 2035 and day.year < 2040:
+        row.append(10)
+        row.append('2037')
     else:
-        row.append(3)
-        row.append('2040')
+        row.append(11)
+        row.append('2042')
+    
     row.append(1)
     row.append(24)
-    row.append(7)
+    row.append(365)
     row.append(datetime.combine(day, time()))
-    row.append('Day '+str(day))
-    row.append(2)
+    row.append('Day '+str(day)+' hourly')
+    row.append(3)
     
     ts_up.append(row)
     
     ts_id += 1
-    day += timedelta(days=7)
+    day = add_months(day,1)
 
 try:
     values_str = ','.join(cur.mogrify("(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", ts) for ts in ts_up)
