@@ -18,7 +18,7 @@ from getpass import getpass
 
 # The timeseries scenario id must be inputted to generate the timepoints
 # corresponding to that set
-sample_ts_scenario_id = 2
+sample_ts_scenario_id = 4
 
 username = 'bmaluenda'
 passw = getpass('Enter database password for user %s' % username)
@@ -55,12 +55,11 @@ for row in timeseries_table:
         query = "INSERT INTO chile_new.timescales_sample_timepoints VALUES "+values_str+";"
         cur.execute(query)
         con.commit()
-        print "Query for sampling of timeseries id %s has been successful" % population_ts_id
     except psycopg2.DatabaseError, e:
         if con:
             con.rollback()
         print 'Error %s' % e    
-
+print "success"
 if cur:
     cur.close()
 if con:
