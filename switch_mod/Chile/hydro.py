@@ -13,7 +13,7 @@ SYNOPSIS
 >>> from switch_mod.utilities import create_model
 >>> model = create_model(
 ...     ['timescales', 'financials', 'load_zones', 'fuels',
-...     'gen_tech', 'project.build', 'Chile.hydro'])
+...     'gen_tech', 'project.build', 'project.dispatch', 'Chile.hydro'])
 >>> instance = model.load_inputs(inputs_dir='test_dat')
 
 """
@@ -219,8 +219,8 @@ def define_components(mod):
         mod.RESERVOIRS, mod.TIMEPOINTS,
         rule=Enforce_Reservoir_vol_Links)
     mod.Enforce_Final_vol_condition = Constraint(
-        mod.RESERVOIRS,
-        rule=lambda m, r: (m.ReservoirFinalvol[r, m.TIMEPOINTS.last()] >=
+        mod.RESERVOIRS, mod.PERIODS,
+        rule=lambda m, r, p: (m.ReservoirFinalvol[r, m.PERIOD_TPS[p].last()] >=
             m.initial_res_vol[r]))
 
             
